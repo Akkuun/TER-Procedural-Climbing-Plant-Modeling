@@ -57,9 +57,9 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
        }
 
     update(){
-        this.mesh.rotation.x += 0.1;
-        this.mesh.rotation.y += 0.1;
-        this.mesh.rotation.z += 0.1;
+        //this.mesh.rotation.x += .1;
+        this.mesh.rotation.y += .1;
+        this.mesh.rotation.z += .1;
 
     }
 
