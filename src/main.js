@@ -9,7 +9,8 @@ import * as THREE from "three";
 import GUI from 'lil-gui';
 import GLTFModelLoader from './utils/Loader.js';
 import lightManager from "./components/LightManager.js";
-
+import DimensionGUIHelper from './utils/DimensionGUIHelper.js';
+import MinMaxGUIHelper from './utils/MinMaxGUIHelper.js';
 // Création des éléments principaux
 const scene = createScene();
 const camera = createCamera();
@@ -31,12 +32,17 @@ const lightParams = {
     color: 0xffffff,
     intensity: 1.4,
     size: 1,
-    colorHelper: 0x000000
+    colorHelper: 0x000000,
+    width: 512,
+    height: 512,
+    near: 0.5,
+    far: 500,
+    zoom: 1
 };
 
 
 // Ajout de lumières
-lightsManager.addLight(lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
+lightsManager.addLight(lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams);
 
 // GUI controls
 const gui = new GUI({ container: document.getElementById('gui-container') });
@@ -53,9 +59,29 @@ targetFolder.add(lightParams, 'ty', -50, 50).onChange(updateLight);
 targetFolder.add(lightParams, 'tz', -50, 50).onChange(updateLight);
 targetFolder.open();
 
+const shadowFolder = gui.addFolder('Shadow Parameters');
+shadowFolder.add(new DimensionGUIHelper(lightsManager.lights[0].light.shadow.camera, 'left', 'right'), 'value', 1, 100)
+    .name('width')
+    .onChange(updateCamera);
+shadowFolder.add(new DimensionGUIHelper(lightsManager.lights[0].light.shadow.camera, 'bottom', 'top'), 'value', 1, 100)
+    .name('height')
+    .onChange(updateCamera);
+const minMaxGUIHelper = new MinMaxGUIHelper(lightsManager.lights[0].light.shadow.camera, 'near', 'far', 0.1);
+shadowFolder.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateCamera);
+shadowFolder.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far').onChange(updateCamera);
+shadowFolder.add(lightsManager.lights[0].light.shadow.camera, 'zoom', 0.01, 1.5, 0.01).onChange(updateCamera);
+shadowFolder.open();
 function updateLight() {
-    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
+    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams);
 }
+function updateCamera() {
+    const light = lightsManager.lights[0].light;
+    light.target.updateMatrixWorld();
+    lightsManager.lights[0].lightHelper.update();
+    light.shadow.camera.updateProjectionMatrix();
+    lightsManager.lights[0].cameraHelper.update();
+}
+
 // Load GLTF model using GLTFModelLoader class
 // const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
 // modelLoader.loadModel();
