@@ -53,54 +53,30 @@ ground.rotation.x = -Math.PI / 2;
 ground.position.y = -1;
 scene.add(ground);
 
-// Particles
-const particles = [];
-/*for (let i = 0; i < 50; i++) {
-    const particule = new Particule(0.5, 32, 16, 0x00ff00,
-        new THREE.Vector3(
-            Math.random() * 5 - 2.5,
-            Math.random() * 10 + 5,
-            Math.random() * 5 - 2.5),
-        new THREE.Euler(
-            Math.random() * Math.PI,
-            Math.random() * Math.PI,
-            Math.random() * Math.PI),
-        new THREE.MeshPhongMaterial({
-            color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world);
-    particule.createEllipsoid();
-    particule.addToScene(scene);
-    particles.push(particule);
-}*/
 
-for (let i = 0; i < 50; i++) {
+// Particles rope
+const particles = [];
+for (let i = 0; i < 10; i++) {
     const particule = new Particule(0.5, 32, 16, 0x00ff00,
         new THREE.Vector3(
-            Math.random() * 1 - 0.5,
+            Math.random() * 1 - .5,
             i * 1.8 + 5,
-            Math.random() * 1 - 0.5),
+            Math.random() * 1 - .5),
         new THREE.Euler(
             0,
             0,
             0),
         new THREE.MeshPhongMaterial({
             color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world);
+        }), new THREE.Mesh(), world, 2);
+    if (i > 0) {
+        particles[i - 1].addChildParticle(particule);
+    }
     particule.createEllipsoid();
     particule.addToScene(scene);
     particles.push(particule);
 }
 
-// Attach particles between them
-for (let i = 0; i < particles.length - 1; i++) {
-    const constraint = new CANNON.PointToPointConstraint(
-        particles[i].physicsBody,
-        new CANNON.Vec3(0, 0.9, 0),
-        particles[i + 1].physicsBody,
-        new CANNON.Vec3(0, -0.9, 0)
-    );
-    world.addConstraint(constraint);
-}
 
 // Animation
 function animate() {
