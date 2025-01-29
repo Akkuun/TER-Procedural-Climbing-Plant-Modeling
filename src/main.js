@@ -1,19 +1,21 @@
 import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
 import { createRenderer } from './components/Renderer';
-import { addLights } from './components/Lights';
+import LightManager from "./components/LightManager.js";
 import { setupControls } from './components/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as THREE from "three";
 import GUI from 'lil-gui';
 import GLTFModelLoader from './utils/Loader.js';
+import lightManager from "./components/LightManager.js";
 
 // Création des éléments principaux
 const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer();
 const monitor = new Monitor();
+const lightsManager = new LightManager(scene);
 
 document.body.appendChild(renderer.domElement);
 
@@ -21,20 +23,20 @@ document.body.appendChild(renderer.domElement);
 // Paramètres de la lumière
 const lightParams = {
     lx: 0,
-    ly: 5,
+    ly: 11.9,
     lz: -13,
     tx: 0,
-    ty: 5,
-    tz: -10,
+    ty: 2.1,
+    tz: -1.6,
     color: 0xffffff,
-    intensity: 1,
+    intensity: 1.4,
     size: 1,
     colorHelper: 0x000000
 };
 
 
 // Ajout de lumières
-addLights(scene, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
+lightsManager.addLight(lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
 
 // GUI controls
 const gui = new GUI({ container: document.getElementById('gui-container') });
@@ -52,9 +54,7 @@ targetFolder.add(lightParams, 'tz', -50, 50).onChange(updateLight);
 targetFolder.open();
 
 function updateLight() {
-    scene.remove(scene.getObjectByName('light'));
-    scene.remove(scene.getObjectByName('lightHelper'));
-    addLights(scene, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
+    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper);
 }
 // Load GLTF model using GLTFModelLoader class
 // const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
@@ -121,8 +121,7 @@ animate();
 handleResize(camera, renderer);
 
 
-
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.addEventListener('change', () => {
-    renderer.render(scene, camera);
-});
+// const controls = new THREE.OrbitControls(camera, renderer.domElement);
+// controls.addEventListener('change', () => {
+//     renderer.render(scene, camera);
+// });
