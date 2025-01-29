@@ -2,6 +2,10 @@
 
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
+import * as CANNON from "cannon-es";
+import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
+
+export const MAX_PARTICLE_CHILDS = 4;
 
 class Particule  {
     //radius: the radius of the ellipsoid
@@ -26,41 +30,134 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     radius;
     widthSegments;
     heightSegments;
-    color;
     position;
     rotation;
     material;
     mesh;
     wireFrame;
+    lengthY;
+    
+    // Physics engine
+    world; // The physics world
+    physicsBody; // The physics body of the ellipsoid (Cylinder shape)
+    parentParticle; // The parent particle of this particle
+    childParticles = []; // The child particles of this particle
 
-
-    constructor(radius, widthSegments, heightSegments, color, position, rotation, material, mesh) {
+    /**
+     * 
+     * @param {*} radius ??
+     * @param {*} widthSegments ??
+     * @param {*} heightSegments ??
+     * @param {THREE.Vector3} position Position of the ellipsoid's center
+     * @param {THREE.Euler} rotation Rotation of the ellipsoid
+     * @param {THREE.MeshPhongMaterial} material Phong material of the ellipsoid (contains the color !)
+     * @param {*} mesh ??
+     * @param {CANNON.World} world Physics engine world
+     * @param {float} lengthY Length of the ellipsoid along the y-axis
+     */
+    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY) {
         this.radius = radius;
         this.widthSegments = widthSegments;
         this.heightSegments = heightSegments;
-        this.color = color;
         this.position = position;
         this.rotation = rotation;
         this.material = material;
         this.mesh = mesh;
+        this.lengthY = lengthY;
+
+        // Physics engine
+        this.world = world;
+        this.physicsBody = new CANNON.Body({
+            mass: 1,
+            shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+        });
+        this.physicsBody.position.set(position.x, position.y, position.z);
+        this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
+        this.physicsBody.collisionFilterGroup = GROUP_PLANT;
+        this.physicsBody.collisionFilterMask = GROUP_GROUND;
+        this.world.addBody(this.physicsBody);
+
+        
+
        // this.wireFrame = new THREE.EdgesGeometry(this.mesh.geometry);
         //this.wireFrame= new THREE.LineSegments(new THREE.LineBasicMaterial({color: 0x000000, linewidth: 2}), this.wireFrame);
         //this.mesh.add(this.wireFrame);
         this.createEllipsoid();
+        this.update();
     }
 
     createEllipsoid(){
         this.mesh = new THREE.Mesh(new THREE.SphereGeometry(this.radius, this.widthSegments, this.heightSegments), this.material);
         this.mesh.position.set(this.position.x, this.position.y, this.position.z);
         this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
-        this.mesh.scale.set(2, 1, 1);
+        // Cylinder heights follows the y-axis on the physics body so we need to match this here
+        this.mesh.scale.set(1, this.lengthY, 1);
        }
 
+    /**
+     * Updates the position and quaternion of the mesh based on the physics body
+     */
     update(){
-        //this.mesh.rotation.x += .1;
-        this.mesh.rotation.y += .1;
-        this.mesh.rotation.z += .1;
+        // Copy the position and quaternion of the physics body to the mesh at each update
+        this.mesh.position.copy(this.physicsBody.position);
+        this.mesh.quaternion.copy(this.physicsBody.quaternion);
+    }
 
+    /**
+     * Adds the ellipsoid's mesh to the scene
+     * @param {THREE.Scene} scene 
+     */
+    addToScene(scene){
+        scene.add(this.mesh);
+    }
+
+    /**
+     * 
+     * @returns the attach point of the parent particle (the bottom of the ellipsoid)
+     */
+    getParentAttachPoint(){
+        return new CANNON.Vec3(0, -this.lengthY*0.45, 0);
+    }
+
+    /**
+     * 
+     * @returns the attach point of the child particle (the top of the ellipsoid)
+     */
+    getChildAttachPoint(){
+        return new CANNON.Vec3(0, this.lengthY*0.45, 0);
+    }
+
+    setParentParticle(parentParticle){
+        parentParticle.addChildParticle(this);
+    }
+
+    getParentParticle(){
+        return this.parentParticle;
+    }
+
+    /**
+     * Adds a child particle to the particle.
+     * @param {Particule} childParticle 
+     * @returns true if the child particle was added successfully, false otherwise
+     */
+    addChildParticle(childParticle){
+        if (this.childParticles.length < MAX_PARTICLE_CHILDS-1){
+            this.childParticles.push(childParticle);
+            childParticle.setParentParticle(this);
+            let constraint = new CANNON.PointToPointConstraint(
+                this.physicsBody,
+                this.getChildAttachPoint(),
+                childParticle.physicsBody,
+                childParticle.getParentAttachPoint()
+            );
+            this.world.addConstraint(constraint);
+            return true;
+        }
+        return false;
+    }
+
+    getChildParticles(){
+        return this.childParticles;
     }
 
 }

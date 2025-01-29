@@ -12,6 +12,8 @@
     "vite": "^6.0.5"
   },
   "dependencies": {
+    "@react-three/cannon": "^6.6.0",
+    "cannon-es": "^0.20.0",
     "gsap": "^3.12.7",
     "lil-gui": "^0.20.0",
     "stats.js": "^0.17.0",
