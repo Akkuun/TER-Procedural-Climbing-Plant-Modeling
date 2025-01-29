@@ -46,36 +46,32 @@ world.addBody(groundBody);
 
 // Plane corresponding to the ground
 const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10),
+    new THREE.PlaneGeometry(50, 50),
     new THREE.MeshStandardMaterial({ color: 0x808080 })
 );
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -1;
 scene.add(ground);
 
-
-// Also apply physics to a particule. A particule is an ellpisoid 3D shape
-const particule = new Particule(0.5, 32, 16, 0x00ff00, new THREE.Vector3(0, 5, 0), new THREE.Vector3(0, 0, 0), new THREE.MeshPhongMaterial({ color: 0x00ff00 }), new THREE.Mesh());
-scene.add(particule.mesh);
-
-const particuleBody = new CANNON.Body({
-    mass: 1,
-    shape: new CANNON.Cylinder(0.5, 0.5, 1, 32),
-});
-particuleBody.position.set(0.1, 5, 0);
-
-world.addBody(particuleBody);
-
-const particle2 = new Particule(0.5, 32, 16, 0x00ff00, new THREE.Vector3(0, 5, 0), new THREE.Vector3(0, 0, 0), new THREE.MeshPhongMaterial({ color: 0x00ff00 }), new THREE.Mesh());
-scene.add(particle2.mesh);
-
-const particuleBody2 = new CANNON.Body({
-    mass: 1,
-    shape: new CANNON.Cylinder(0.5, 0.5, 1, 32),
-});
-particuleBody2.position.set(1, 8, 0.1);
-
-world.addBody(particuleBody2);
+// Particles
+const particles = [];
+for (let i = 0; i < 50; i++) {
+    const particule = new Particule(0.5, 32, 16, 0x00ff00,
+        new THREE.Vector3(
+            Math.random() * 5 - 2.5,
+            Math.random() * 10 + 5,
+            Math.random() * 5 - 2.5),
+        new THREE.Euler(
+            Math.random() * Math.PI,
+            Math.random() * Math.PI,
+            Math.random() * Math.PI),
+        new THREE.MeshPhongMaterial({
+            color: Math.random() * 0xffffff
+        }), new THREE.Mesh(), world);
+    particule.createEllipsoid();
+    particule.addToScene(scene);
+    particles.push(particule);
+}
 
 // Animation
 function animate() {
@@ -86,12 +82,8 @@ function animate() {
 
     // Update physics
     world.step(1 / 60);
-
-    particule.mesh.position.copy(particuleBody.position);
-    particule.mesh.quaternion.copy(particuleBody.quaternion);
-
-    particle2.mesh.position.copy(particuleBody2.position);
-    particle2.mesh.quaternion.copy(particuleBody2.quaternion);
+    // Update particules based on physics calculations
+    for (const particule of particles) particule.update();
 
     monitor.end();
     renderer.render(scene, camera);
