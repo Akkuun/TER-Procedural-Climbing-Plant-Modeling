@@ -3,6 +3,7 @@
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
 
 export const MAX_PARTICLE_CHILDS = 4;
 
@@ -29,7 +30,6 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     radius;
     widthSegments;
     heightSegments;
-    color;
     position;
     rotation;
     material;
@@ -43,12 +43,22 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     parentParticle; // The parent particle of this particle
     childParticles = []; // The child particles of this particle
 
-
-    constructor(radius, widthSegments, heightSegments, color, position, rotation, material, mesh, world, lengthY) {
+    /**
+     * 
+     * @param {*} radius ??
+     * @param {*} widthSegments ??
+     * @param {*} heightSegments ??
+     * @param {THREE.Vector3} position Position of the ellipsoid's center
+     * @param {THREE.Euler} rotation Rotation of the ellipsoid
+     * @param {THREE.MeshPhongMaterial} material Phong material of the ellipsoid (contains the color !)
+     * @param {*} mesh ??
+     * @param {CANNON.World} world Physics engine world
+     * @param {float} lengthY Length of the ellipsoid along the y-axis
+     */
+    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY) {
         this.radius = radius;
         this.widthSegments = widthSegments;
         this.heightSegments = heightSegments;
-        this.color = color;
         this.position = position;
         this.rotation = rotation;
         this.material = material;
@@ -63,6 +73,8 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
+        this.physicsBody.collisionFilterGroup = GROUP_PLANT;
+        this.physicsBody.collisionFilterMask = GROUP_GROUND;
         this.world.addBody(this.physicsBody);
 
         

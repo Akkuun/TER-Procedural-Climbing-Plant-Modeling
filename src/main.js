@@ -10,6 +10,8 @@ import GLTFModelLoader from './utils/Loader.js';
 import * as CANNON from 'cannon-es';
 import { createCube } from './components/Cube';
 import  Particule  from './components/Particule.js';
+import PlaneTerrain from './components/PlaneTerrain.js';
+import { GROUP_PLANT, GROUP_GROUND } from './utils/Engine.js';
 
 // Création des éléments principaux
 const scene = createScene();
@@ -35,29 +37,14 @@ setupControls(camera, renderer.domElement);
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
-// Create a ground plane
-const groundBody = new CANNON.Body({
-    mass: 0, // mass = 0 makes the body static
-    shape: new CANNON.Plane(),
-});
-groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-groundBody.position.set(0, -1, 0);
-world.addBody(groundBody);
-
-// Plane corresponding to the ground
-const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(50, 50),
-    new THREE.MeshStandardMaterial({ color: 0x808080 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -1;
-scene.add(ground);
-
+// Ground
+let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({ color: 0x808080 }));
+ground.addToScene(scene);
 
 // Particles rope
 const particles = [];
-for (let i = 0; i < 10; i++) {
-    const particule = new Particule(0.5, 32, 16, 0x00ff00,
+for (let i = 0; i < 50; i++) {
+    const particule = new Particule(0.5, 32, 16,
         new THREE.Vector3(
             Math.random() * 1 - .5,
             i * 1.8 + 5,
