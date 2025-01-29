@@ -6,7 +6,7 @@ class LightManager {
         this.lights = [];
     }
 
-    addLight(lightPos = { lx: 0, ly: 0, lz: 0 }, targetPos = { tx: 0, ty: 0, tz: 0 }, color = 0xffffff, intensity = 1, size = 1, colorHelper = 0x000000, shadowParams = { width: 512, height: 512, near: 0.5, far: 500, zoom: 1 }) {
+    addLight(lightPos = { lx: 0, ly: 0, lz: 0 }, targetPos = { tx: 0, ty: 0, tz: 0 }, color = 0xffffff, intensity = 1, size = 1, colorHelper = 0x000000, shadowParams = { shadowmapSizeWidth: 10, shadowmapSizeHeight: 10, near: 0.5, far: 500, zoom: 1 }, mapParams = { width: 512, height: 512, bias: -0.001 }) {
         const { lx, ly, lz } = lightPos;
         const { tx, ty, tz } = targetPos;
         const { width, height, near, far, zoom } = shadowParams;
@@ -17,8 +17,13 @@ class LightManager {
 
         // shadowmap
         light.castShadow = true;
-        light.shadow.mapSize.width = width;
-        light.shadow.mapSize.height = height;
+        light.shadow.camera.left = -width / 2;
+        light.shadow.camera.right = width / 2;
+        light.shadow.camera.top = height / 2;
+        light.shadow.camera.bottom = -height / 2;
+        light.shadow.mapSize.width = mapParams.shadowmapSizeWidth;
+        light.shadow.mapSize.height = mapParams.shadowmapSizeHeight;
+        light.shadow.bias = mapParams.bias;
         light.shadow.camera.near = near;
         light.shadow.camera.far = far;
         light.shadow.camera.zoom = zoom;
@@ -50,7 +55,7 @@ class LightManager {
         }
     }
 
-    updateLight(index, lightPos, targetPos, color, intensity, size, colorHelper, shadowParams) {
+    updateLight(index, lightPos, targetPos, color, intensity, size, colorHelper, shadowParams, mapParams) {
         if (index >= 0 && index < this.lights.length) {
             const { light } = this.lights[index];
             const { lx, ly, lz } = lightPos;
@@ -64,8 +69,13 @@ class LightManager {
             light.size = size;
 
             // Update shadow parameters
-            light.shadow.mapSize.width = width;
-            light.shadow.mapSize.height = height;
+            light.shadow.camera.left = -width / 2;
+            light.shadow.camera.right = width / 2;
+            light.shadow.camera.top = height / 2;
+            light.shadow.camera.bottom = -height / 2;
+            light.shadow.mapSize.width = mapParams.width;
+            light.shadow.mapSize.height = mapParams.height;
+            light.shadow.bias = mapParams.bias;
             light.shadow.camera.near = near;
             light.shadow.camera.far = far;
             light.shadow.camera.zoom = zoom;

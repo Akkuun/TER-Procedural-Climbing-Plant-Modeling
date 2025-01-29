@@ -33,16 +33,19 @@ const lightParams = {
     intensity: 1.4,
     size: 1,
     colorHelper: 0x000000,
-    width: 512,
-    height: 512,
+    width: 10,
+    height: 10,
     near: 0.5,
     far: 500,
-    zoom: 1
+    zoom: 1,
+    shadowmapSizeWidth: 512,
+    shadowmapSizeHeight: 512,
+    bias: 0
 };
 
 
 // Ajout de lumières
-lightsManager.addLight(lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams);
+lightsManager.addLight(lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
 
 // GUI controls
 const gui = new GUI({ container: document.getElementById('gui-container') });
@@ -66,13 +69,16 @@ shadowFolder.add(new DimensionGUIHelper(lightsManager.lights[0].light.shadow.cam
 shadowFolder.add(new DimensionGUIHelper(lightsManager.lights[0].light.shadow.camera, 'bottom', 'top'), 'value', 1, 100)
     .name('height')
     .onChange(updateCamera);
+shadowFolder.add(lightsManager.lights[0].light.shadow, 'bias', -0.01, 0.01, 0.0001).name('bias');
+shadowFolder.add(lightsManager.lights[0].light.shadow.mapSize, 'width', 128, 8192, 128).name('mapSize width').onChange(updateCamera);
+shadowFolder.add(lightsManager.lights[0].light.shadow.mapSize, 'height', 128, 8192, 128).name('mapSize height').onChange(updateCamera);
 const minMaxGUIHelper = new MinMaxGUIHelper(lightsManager.lights[0].light.shadow.camera, 'near', 'far', 0.1);
 shadowFolder.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateCamera);
 shadowFolder.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far').onChange(updateCamera);
 shadowFolder.add(lightsManager.lights[0].light.shadow.camera, 'zoom', 0.01, 1.5, 0.01).onChange(updateCamera);
 shadowFolder.open();
 function updateLight() {
-    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams);
+    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
 }
 function updateCamera() {
     const light = lightsManager.lights[0].light;
