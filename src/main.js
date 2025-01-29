@@ -55,7 +55,7 @@ scene.add(ground);
 
 // Particles
 const particles = [];
-for (let i = 0; i < 50; i++) {
+/*for (let i = 0; i < 50; i++) {
     const particule = new Particule(0.5, 32, 16, 0x00ff00,
         new THREE.Vector3(
             Math.random() * 5 - 2.5,
@@ -71,6 +71,35 @@ for (let i = 0; i < 50; i++) {
     particule.createEllipsoid();
     particule.addToScene(scene);
     particles.push(particule);
+}*/
+
+for (let i = 0; i < 50; i++) {
+    const particule = new Particule(0.5, 32, 16, 0x00ff00,
+        new THREE.Vector3(
+            Math.random() * 1 - 0.5,
+            i * 1.8 + 5,
+            Math.random() * 1 - 0.5),
+        new THREE.Euler(
+            0,
+            0,
+            0),
+        new THREE.MeshPhongMaterial({
+            color: Math.random() * 0xffffff
+        }), new THREE.Mesh(), world);
+    particule.createEllipsoid();
+    particule.addToScene(scene);
+    particles.push(particule);
+}
+
+// Attach particles between them
+for (let i = 0; i < particles.length - 1; i++) {
+    const constraint = new CANNON.PointToPointConstraint(
+        particles[i].physicsBody,
+        new CANNON.Vec3(0, 0.9, 0),
+        particles[i + 1].physicsBody,
+        new CANNON.Vec3(0, -0.9, 0)
+    );
+    world.addConstraint(constraint);
 }
 
 // Animation
