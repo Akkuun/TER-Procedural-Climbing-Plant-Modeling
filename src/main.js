@@ -10,6 +10,8 @@ import GUI from 'lil-gui';
 import { setupLightGUI } from './components/LightGUI.js';
 import DimensionGUIHelper from './utils/DimensionGUIHelper.js';
 import MinMaxGUIHelper from './utils/MinMaxGUIHelper.js';
+import {isObjectInShadowWithRay, isObjectInShadow} from "./utils/ObjectInShadow.js";
+
 // Création des éléments principaux
 const scene = createScene();
 const camera = createCamera();
@@ -51,6 +53,11 @@ lightsManager.addLight(lightParams.type,lightParams, lightParams, lightParams.co
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
     lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
+    // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+    // console.log(`RAY : Cube is in shadow: ${inShadow}`);
+    //
+    // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
+    // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
 }
 function updateCamera() {
     const light = lightsManager.lights[0].light;
@@ -97,11 +104,22 @@ const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
 cube.position.x = 2;
 cube.position.y = plane.position.y;
 cube.position.y *=0.5;
+cube.name = "cube";
 cube.castShadow = true;
 cube.receiveShadow = true;
 // Ajout du cube à la scène
 scene.add(cube);
 
+//cube qui bloque la lumière sur le premier cube
+const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
+cube2.position.z = -4;
+cube2.position.x = 2;
+cube2.position.y = plane.position.y;
+cube2.position.y *=0.5;
+cube2.scale.set(6, 6, 6);
+cube2.castShadow = true;
+cube2.receiveShadow = true;
+scene.add(cube2);
 
 
 
@@ -117,12 +135,26 @@ function animate() {
 
     monitor.end();
     renderer.render(scene, camera);
+
+    // /!\ Danger de mort de pc /!\
+    // la clock de animate est bien trop rapide
+    // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+    // console.log(`RAY : Cube is in shadow: ${inShadow}`);
+    //
+    // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
+    // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
 }
 // Main loop
 animate();
 
 // Gestion du redimensionnement
 handleResize(camera, renderer);
+
+const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+console.log(`RAY : Cube is in shadow: ${inShadow}`);
+
+const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
+console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
 
 
 // const controls = new THREE.OrbitControls(camera, renderer.domElement);
