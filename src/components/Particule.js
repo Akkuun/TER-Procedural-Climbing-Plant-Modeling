@@ -92,6 +92,8 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
         // Cylinder heights follows the y-axis on the physics body so we need to match this here
         this.mesh.scale.set(1, this.lengthY, 1);
+        this.mesh.receiveShadow = true;
+        this.mesh.castShadow = true;
        }
 
     /**

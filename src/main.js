@@ -87,49 +87,6 @@ const ambientOcclusion = textureLoader.load('./src/assets/Maps/grass_maps/Grass_
 const height = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Height.jpg');
 const normal = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Normal.jpg');
 const roughness = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Roughness.jpg');
-// Création de la géométrie du plan
-const planeGeometry = new THREE.PlaneGeometry(13*2, 13*2, 100, 100);
-//Création du matériau du plan
-const planeMaterial = new THREE.MeshStandardMaterial({
-    map: baseColor,
-    aoMap: ambientOcclusion,
-    displacementMap: height,
-    normalMap: normal,
-    roughnessMap: roughness
-});
-const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-// Rotation et positionnement du plan
-plane.rotation.x = -Math.PI / 2;
-plane.position.y = -1;
-plane.receiveShadow = true;
-// Ajout du plan à la scène
-scene.add(plane);
-
-// Création d'un cube
-const cubeGeometry = new THREE.BoxGeometry();
-const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-// Positionnement du cube qui en hauteur fit le plan
-cube.position.x = 2;
-cube.position.y = plane.position.y;
-cube.position.y *=0.5;
-cube.name = "cube";
-cube.castShadow = true;
-cube.receiveShadow = true;
-// Ajout du cube à la scène
-scene.add(cube);
-
-//cube qui bloque la lumière sur le premier cube
-const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
-cube2.position.z = -4;
-cube2.position.x = 2;
-cube2.position.y = plane.position.y;
-cube2.position.y *=0.5;
-cube2.scale.set(6, 6, 6);
-cube2.castShadow = true;
-cube2.receiveShadow = true;
-scene.add(cube2);
-
 
 
 // Ajout des contrôles
@@ -140,7 +97,13 @@ const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
 // Ground
-let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({ color: 0x808080 }));
+let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
+    map: baseColor,
+    aoMap: ambientOcclusion,
+    displacementMap: height,
+    normalMap: normal,
+    roughnessMap: roughness
+}));
 ground.addToScene(scene);
 
 // Particles rope
@@ -165,6 +128,31 @@ for (let i = 0; i < 50; i++) {
     particule.addToScene(scene);
     particles.push(particule);
 }
+
+// Création d'un cube
+const cubeGeometry = new THREE.BoxGeometry();
+const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+// Positionnement du cube qui en hauteur fit le plan
+cube.position.x = 2;
+cube.position.y = ground.mesh.position.y;
+cube.position.y *=0.5;
+cube.name = "cube";
+cube.castShadow = true;
+cube.receiveShadow = true;
+// Ajout du cube à la scène
+scene.add(cube);
+
+//cube qui bloque la lumière sur le premier cube
+const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
+cube2.position.z = -4;
+cube2.position.x = 2;
+cube2.position.y = ground.mesh.position.y;
+cube2.position.y *=0.5;
+cube2.scale.set(6, 6, 6);
+cube2.castShadow = true;
+cube2.receiveShadow = true;
+scene.add(cube2);
 
 
 // Animation

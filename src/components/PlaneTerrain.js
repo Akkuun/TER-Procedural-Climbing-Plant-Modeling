@@ -33,6 +33,7 @@ class PlaneTerrain {
         );
         this.mesh.rotation.x = -Math.PI / 2;
         this.mesh.position.copy(this.physicsBody.position);
+        this.mesh.receiveShadow = true;
     }
 
     addToScene(scene) {
