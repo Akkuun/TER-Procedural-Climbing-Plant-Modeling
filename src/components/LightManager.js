@@ -36,7 +36,11 @@ class LightManager {
         }
     }
 
-    addLight(type = 'DirectionalLight',lightPos = { lx: 0, ly: 0, lz: 0 }, targetPos = { tx: 0, ty: 0, tz: 0 }, color = 0xffffff, intensity = 1, size = 1, colorHelper = 0x000000, shadowParams = { shadowmapSizeWidth: 10, shadowmapSizeHeight: 10, near: 0.5, far: 500, zoom: 1 }, mapParams = { width: 512, height: 512, bias: -0.001 }) {
+    addLight(type = 'DirectionalLight',lightPos = { lx: 0, ly: 0, lz: 0 },
+             targetPos = { tx: 0, ty: 0, tz: 0 }, color = 0xffffff,
+             intensity = 1, size = 1, colorHelper = 0x000000,
+             shadowParams = { shadowmapSizeWidth: 512, shadowmapSizeHeight: 512, near: 0.5, far: 500, zoom: 1 },
+             mapParams = { width: 10, height: 10, bias: -0.001 }) {
         const { lx, ly, lz } = lightPos;
         const { tx, ty, tz } = targetPos;
         const { width, height, near, far, zoom } = shadowParams;
@@ -115,16 +119,18 @@ class LightManager {
             light.size = size;
 
             if (light.shadow) {
+
                 light.shadow.camera.left = -width / 2;
                 light.shadow.camera.right = width / 2;
                 light.shadow.camera.top = height / 2;
                 light.shadow.camera.bottom = -height / 2;
-                light.shadow.mapSize.width = mapParams.width;
-                light.shadow.mapSize.height = mapParams.height;
+                light.shadow.mapSize.width = mapParams.shadowmapSizeWidth;
+                light.shadow.mapSize.height = mapParams.shadowmapSizeHeight;
                 light.shadow.bias = mapParams.bias;
                 light.shadow.camera.near = near;
                 light.shadow.camera.far = far;
                 light.shadow.camera.zoom = zoom;
+                light.shadow.camera.updateProjectionMatrix();
             }
 
             this.lights[index].lightHelper.update();
