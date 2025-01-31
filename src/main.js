@@ -5,25 +5,44 @@ import {addLights} from './components/Lights';
 import {setupControls} from './utils/Controls.js';
 import {handleResize} from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
-import * as THREE from "three";
 import * as CANNON from 'cannon-es';
 import Particule from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import {createCube} from "./components/Cube.js";
-import { displayVectorVf} from "./utils/VectorHelper.js";
+import {displayVectorVf, displayVectorVs} from "./utils/VectorHelper.js";
+import * as THREE from 'three';
+import {
+    computeBoundsTree, disposeBoundsTree,
+    computeBatchedBoundsTree, disposeBatchedBoundsTree,
+    acceleratedRaycast,
+    MeshBVHHelper
+} from 'three-mesh-bvh';
+
+//for BVH
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+THREE.BatchedMesh.prototype.computeBoundsTree = computeBatchedBoundsTree;
+THREE.BatchedMesh.prototype.disposeBoundsTree = disposeBatchedBoundsTree;
+THREE.BatchedMesh.prototype.raycast = acceleratedRaycast;
+
 
 // Création des éléments principaux
 const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer();
 const monitor = new Monitor();
-
 document.body.appendChild(renderer.domElement);
-
 addLights(scene);
-const cube = createCube();
-scene.add(cube.translateX(2));
 
+//Cube to represent the object mesh
+const cube = createCube();
+scene.add(cube.translateX(-4).translateY(0));
+
+
+// Create a BVH visualizer and add it to the scene
+const visualizer = new MeshBVHHelper(cube,4);
+scene.add(visualizer);
 
 // // Load GLTF model using GLTFModelLoader class
 // const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
@@ -40,17 +59,9 @@ document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
         particule.searchForAttachPoint(); //get vf
-        // console.log(particule.vf);
-        // displayVector(particule.vf);
-        console.log(particule);
         let simpleVector = displayVectorVf(particule);
-        // let simpleVector = new THREE.ArrowHelper(
-        //     new THREE.Vector3(1, 1, 1).normalize(), // direction
-        //     new THREE.Vector3(0, 0, 0), // origin
-        //     2, // length
-        //     0xff0000 // color
-        // );
-        scene.add(simpleVector);
+        let simpleVector2 = displayVectorVs(particule);
+        scene.add(simpleVector2);
 
     }
 }

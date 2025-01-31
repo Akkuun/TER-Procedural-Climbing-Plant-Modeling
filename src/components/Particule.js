@@ -72,6 +72,8 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.mesh = mesh;
         this.lengthY = lengthY;
 
+        this.vf = new THREE.Vector3();
+        this.vs = new THREE.Vector3();
         // Physics engine
         this.world = world;
         this.physicsBody = new CANNON.Body({
@@ -173,10 +175,23 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
      * delta_t : the time step of the simulation
      * */
     searchForAttachPoint(){
-        this.vf = new THREE.Vector3();
         this.mesh.getWorldDirection(this.vf);
+       // this.vs = this.getClosestPointTowardsSurface();
+        //draw a line from the particle to the surface
     }
 
+
+    getClosestPointTowardsSurface() {
+        //raycast to find the closest point towards the surface
+        const raycaster = new THREE.Raycaster();
+        raycaster.set(this.mesh.position, this.vf);
+        const intersects = raycaster.intersectObjects(scene.children);
+        if (intersects.length > 0){
+            return intersects[0].point;
+        }
+        return new THREE.Vector3();
+
+    }
 }
 
 export default Particule;
