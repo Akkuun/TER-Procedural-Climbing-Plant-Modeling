@@ -1,16 +1,16 @@
-import { createScene } from './components/Scene';
-import { createCamera } from './components/Camera';
-import { createRenderer } from './utils/Renderer.js';
-import { addLights } from './components/Lights';
-import { setupControls } from './utils/Controls.js';
-import { handleResize } from './utils/ResizeHandler';
+import {createScene} from './components/Scene';
+import {createCamera} from './components/Camera';
+import {createRenderer} from './utils/Renderer.js';
+import {addLights} from './components/Lights';
+import {setupControls} from './utils/Controls.js';
+import {handleResize} from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as THREE from "three";
 import * as CANNON from 'cannon-es';
-import  Particule  from './components/Particule.js';
+import Particule from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import {createCube} from "./components/Cube.js";
-import VectorHelper, {displayVector} from "./utils/VectorHelper.js";
+import { displayVectorVf} from "./utils/VectorHelper.js";
 
 // Création des éléments principaux
 const scene = createScene();
@@ -40,11 +40,20 @@ document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
         particule.searchForAttachPoint(); //get vf
-        console.log(particule.vf);
-        displayVector(particule.vf);
+        // console.log(particule.vf);
+        // displayVector(particule.vf);
+        console.log(particule);
+        let simpleVector = displayVectorVf(particule);
+        // let simpleVector = new THREE.ArrowHelper(
+        //     new THREE.Vector3(1, 1, 1).normalize(), // direction
+        //     new THREE.Vector3(0, 0, 0), // origin
+        //     2, // length
+        //     0xff0000 // color
+        // );
+        scene.add(simpleVector);
+
     }
 }
-
 
 
 // Ajout des contrôles
@@ -55,7 +64,7 @@ const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
 // Ground
-let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({ color: 0x808080 }));
+let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({color: 0x808080}));
 ground.addToScene(scene);
 
 // Particles rope
@@ -97,6 +106,7 @@ function animate() {
     monitor.end();
     renderer.render(scene, camera);
 }
+
 // Main loop
 animate();
 

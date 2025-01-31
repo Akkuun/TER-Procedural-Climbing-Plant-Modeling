@@ -3,7 +3,6 @@
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
-import VectorHelper, {displayVector} from "../utils/VectorHelper";
 import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
 import { scene } from "../utils/Scene";
 export const MAX_PARTICLE_CHILDS = 4;
@@ -176,7 +175,6 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     searchForAttachPoint(){
         this.vf = new THREE.Vector3();
         this.mesh.getWorldDirection(this.vf);
-        console.log(this.vf);
     }
 
 }
