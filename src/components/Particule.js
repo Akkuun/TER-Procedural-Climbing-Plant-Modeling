@@ -3,8 +3,9 @@
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import VectorHelper, {displayVector} from "../utils/VectorHelper";
 import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
-
+import { scene } from "../utils/Scene";
 export const MAX_PARTICLE_CHILDS = 4;
 
 class Particule  {
@@ -36,6 +37,13 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     mesh;
     wireFrame;
     lengthY;
+    vf; // forward vector of the particle
+    vs; // closest vector pointing toward the surface
+    phi; // user defined parameter representing the adaption strength
+    delta_t; // the time step of the simulation
+    a_a; // the axis
+    alpha_a; // rotational angle
+
     
     // Physics engine
     world; // The physics world
@@ -103,13 +111,6 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.mesh.quaternion.copy(this.physicsBody.quaternion);
     }
 
-    /**
-     * Adds the ellipsoid's mesh to the scene
-     * @param {THREE.Scene} scene 
-     */
-    addToScene(scene){
-        scene.add(this.mesh);
-    }
 
     /**
      * 
@@ -158,6 +159,24 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
 
     getChildParticles(){
         return this.childParticles;
+    }
+
+    /**
+     * Searches for the hook point of the particle given by the following formula
+     * a_a = Vs * Vf
+     * alpha_a = (Vs . Vf) * phi * delta_t
+     *--------------------------------------
+     * a_a :  the axis
+     * alpha_a : rotational angle
+     * vs : the closest vector pointing tower the surface
+     * vf : current forward vector of the particle
+     * phi : user defined parameter representing the adaption strength
+     * delta_t : the time step of the simulation
+     * */
+    searchForAttachPoint(){
+        this.vf = new THREE.Vector3();
+        this.mesh.getWorldDirection(this.vf);
+        console.log(this.vf);
     }
 
 }
