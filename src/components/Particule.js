@@ -5,6 +5,7 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
 import { scene } from "../utils/Scene";
+import {Vector3} from "three";
 export const MAX_PARTICLE_CHILDS = 4;
 
 class Particule  {
@@ -175,21 +176,24 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
      * delta_t : the time step of the simulation
      * */
     searchForAttachPoint(){
-        this.mesh.getWorldDirection(this.vf);
-       // this.vs = this.getClosestPointTowardsSurface();
+        //cross entre vecteur getWorldDirection et 0,1,0
+        const crossProduct = new THREE.Vector3()
+        let WorldDirection = new THREE.Vector3();
+        this.mesh.getWorldDirection(WorldDirection);
+        const up = new THREE.Vector3(1, 0, 0)
+        crossProduct.crossVectors(WorldDirection, up);
+        this.vf = crossProduct;
+
+        //this.mesh.getWorldDirection(this.vf);
+
+        // this.vs = this.getClosestPointTowardsSurface();
         //draw a line from the particle to the surface
     }
 
-
+    //use of the BHV to get the closest point towards the surface
     getClosestPointTowardsSurface() {
-        //raycast to find the closest point towards the surface
-        const raycaster = new THREE.Raycaster();
-        raycaster.set(this.mesh.position, this.vf);
-        const intersects = raycaster.intersectObjects(scene.children);
-        if (intersects.length > 0){
-            return intersects[0].point;
-        }
-        return new THREE.Vector3();
+        let closestPoint = new THREE.Vector3();
+
 
     }
 }

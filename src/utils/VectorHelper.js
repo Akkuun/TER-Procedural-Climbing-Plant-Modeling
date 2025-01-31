@@ -3,10 +3,11 @@ import * as THREE from 'three';
 // Function that displays a vector in the scene
 export function displayVectorVf(particule) {
     const direction = particule.vf.clone().normalize();
-    const origin = particule.mesh.position.clone();
+    const origin = particule.mesh.position.clone().add(particule.vf.clone().multiplyScalar(particule.lengthY/2));
     const length = 1; // Adjust the length as needed
     const color = particule.material.color.getHex(); // Red color for the arrow
-    const arrowHelper = new THREE.ArrowHelper(direction, origin, length, particule.material.color.getHex());
+    const arrowHelper = new THREE.ArrowHelper(direction, origin, length, particule.material.color.getHex())
+
     return arrowHelper;
 }
 
