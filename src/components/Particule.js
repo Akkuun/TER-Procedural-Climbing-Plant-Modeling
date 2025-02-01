@@ -189,9 +189,10 @@ class Particule {
 
 
         this.vs = this.getDirectionToClosestSurface(cube);
-        console.log(this.vs);
 
-        //draw a line from the particle to the surface
+
+        this.a_a = this.vs.clone().cross(this.vf);
+        this.alpha_a = this.vs.dot(this.vf) * this.phi * this.delta_t;
     }
 
     // launch a ray from the origin with a cone shape to find the closest surface
