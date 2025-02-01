@@ -3,12 +3,14 @@
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
-import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
-import { scene } from "../utils/Scene";
+import {GROUP_PLANT, GROUP_GROUND} from "../utils/Engine";
+import {scene} from "../utils/Scene";
 import {Vector3} from "three";
+import {vec3} from "three/tsl";
+
 export const MAX_PARTICLE_CHILDS = 4;
 
-class Particule  {
+class Particule {
     //radius: the radius of the ellipsoid
     //widthSegments: the number of horizontal segments
     //heightSegments: the number of vertical segments
@@ -19,14 +21,14 @@ class Particule  {
     //mesh: the mesh of the ellipsoid
     //constructor: the constructor of the class
 
-/*
+    /*
 
-const ellipsoidGeometry = new THREE.SphereGeometry(0.5, 32, 16);
-ellipsoidGeometry.rotateZ(Math.PI/2);
-ellipsoidGeometry.scale(2, 1, 1);
-const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMaterial({color: 0x00ff00}));
+    const ellipsoidGeometry = new THREE.SphereGeometry(0.5, 32, 16);
+    ellipsoidGeometry.rotateZ(Math.PI/2);
+    ellipsoidGeometry.scale(2, 1, 1);
+    const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMaterial({color: 0x00ff00}));
 
- */
+     */
 
     radius;
     widthSegments;
@@ -44,7 +46,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     a_a; // the axis
     alpha_a; // rotational angle
 
-    
+
     // Physics engine
     world; // The physics world
     physicsBody; // The physics body of the ellipsoid (Cylinder shape)
@@ -52,7 +54,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
     childParticles = []; // The child particles of this particle
 
     /**
-     * 
+     *
      * @param {*} radius ??
      * @param {*} widthSegments ??
      * @param {*} heightSegments ??
@@ -79,7 +81,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.world = world;
         this.physicsBody = new CANNON.Body({
             mass: 1,
-            shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+            shape: new CANNON.Cylinder(radius, radius, lengthY * 0.9, widthSegments),
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
@@ -87,27 +89,28 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.physicsBody.collisionFilterMask = GROUP_GROUND;
         this.world.addBody(this.physicsBody);
 
-        
 
-       // this.wireFrame = new THREE.EdgesGeometry(this.mesh.geometry);
+        // this.wireFrame = new THREE.EdgesGeometry(this.mesh.geometry);
         //this.wireFrame= new THREE.LineSegments(new THREE.LineBasicMaterial({color: 0x000000, linewidth: 2}), this.wireFrame);
         //this.mesh.add(this.wireFrame);
         this.createEllipsoid();
         this.update();
     }
 
-    createEllipsoid(){
+    createEllipsoid() {
         this.mesh = new THREE.Mesh(new THREE.SphereGeometry(this.radius, this.widthSegments, this.heightSegments), this.material);
         this.mesh.position.set(this.position.x, this.position.y, this.position.z);
         this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
         // Cylinder heights follows the y-axis on the physics body so we need to match this here
         this.mesh.scale.set(1, this.lengthY, 1);
-       }
+        //activate wireframe
+        //this.mesh.material.wireframe = true;
+    }
 
     /**
      * Updates the position and quaternion of the mesh based on the physics body
      */
-    update(){
+    update() {
         // Copy the position and quaternion of the physics body to the mesh at each update
         this.mesh.position.copy(this.physicsBody.position);
         this.mesh.quaternion.copy(this.physicsBody.quaternion);
@@ -115,36 +118,36 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
 
 
     /**
-     * 
+     *
      * @returns the attach point of the parent particle (the bottom of the ellipsoid)
      */
-    getParentAttachPoint(){
-        return new CANNON.Vec3(0, -this.lengthY*0.45, 0);
+    getParentAttachPoint() {
+        return new CANNON.Vec3(0, -this.lengthY * 0.45, 0);
     }
 
     /**
-     * 
+     *
      * @returns the attach point of the child particle (the top of the ellipsoid)
      */
-    getChildAttachPoint(){
-        return new CANNON.Vec3(0, this.lengthY*0.45, 0);
+    getChildAttachPoint() {
+        return new CANNON.Vec3(0, this.lengthY * 0.45, 0);
     }
 
-    setParentParticle(parentParticle){
+    setParentParticle(parentParticle) {
         parentParticle.addChildParticle(this);
     }
 
-    getParentParticle(){
+    getParentParticle() {
         return this.parentParticle;
     }
 
     /**
      * Adds a child particle to the particle.
-     * @param {Particule} childParticle 
+     * @param {Particule} childParticle
      * @returns true if the child particle was added successfully, false otherwise
      */
-    addChildParticle(childParticle){
-        if (this.childParticles.length < MAX_PARTICLE_CHILDS-1){
+    addChildParticle(childParticle) {
+        if (this.childParticles.length < MAX_PARTICLE_CHILDS - 1) {
             this.childParticles.push(childParticle);
             childParticle.setParentParticle(this);
             let constraint = new CANNON.PointToPointConstraint(
@@ -159,7 +162,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         return false;
     }
 
-    getChildParticles(){
+    getChildParticles() {
         return this.childParticles;
     }
 
@@ -175,7 +178,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
      * phi : user defined parameter representing the adaption strength
      * delta_t : the time step of the simulation
      * */
-    searchForAttachPoint(){
+    searchForAttachPoint(cube) {
         //cross entre vecteur getWorldDirection et 0,1,0
         const crossProduct = new THREE.Vector3()
         let WorldDirection = new THREE.Vector3();
@@ -184,17 +187,60 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         crossProduct.crossVectors(WorldDirection, up);
         this.vf = crossProduct;
 
-        //this.mesh.getWorldDirection(this.vf);
 
-        // this.vs = this.getClosestPointTowardsSurface();
+        this.vs = this.getDirectionToClosestSurface(cube);
+        console.log(this.vs);
+
         //draw a line from the particle to the surface
     }
 
-    //use of the BHV to get the closest point towards the surface
-    getClosestPointTowardsSurface() {
-        let closestPoint = new THREE.Vector3();
+    // launch a ray from the origin with a cone shape to find the closest surface
+    // once the point is found, we can compute the vector pointing toward it
+    //compute vector
+    getDirectionToClosestSurface(cube) {
+        let origin = this.getCenterPoint();
+        const direction = new THREE.Vector3();
+        const directions = this.generateDirections(270, 50); // 180° avec 36 directions
+        let closestIntersection = null;
+        let minDistance = Infinity;
+
+        const raycaster = new THREE.Raycaster();
+
+        for (const direction of directions) {
+            raycaster.set(origin, direction);
+            const intersects = raycaster.intersectObject(cube);
+
+            if (intersects.length > 0 && intersects[0].distance < minDistance) {
+                minDistance = intersects[0].distance;
+                closestIntersection = intersects[0];
+            }
+        }
+
+        if (closestIntersection) {
+            return closestIntersection.point.sub(origin).normalize();
+        } else {
+            return null;
+        }
 
 
+    }
+
+    getCenterPoint() {
+        return this.mesh.position;
+    }
+
+    //function that generates directions for the raycaster to search for the closest surface from the search cone of 180°
+    generateDirections(angle, steps) {
+        const directions = [];
+        const stepAngle = angle / steps;
+
+        for (let i = 0; i < steps; i++) {
+            const theta = THREE.MathUtils.degToRad(i * stepAngle);
+            const direction = new THREE.Vector3(Math.cos(theta), Math.sin(theta), 0).normalize();
+            directions.push(direction);
+        }
+
+        return directions;
     }
 }
 

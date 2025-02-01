@@ -41,7 +41,7 @@ scene.add(cube.translateX(-4).translateY(0));
 
 
 // Create a BVH visualizer and add it to the scene
-const visualizer = new MeshBVHHelper(cube,4);
+const visualizer = new MeshBVHHelper(cube, 4);
 scene.add(visualizer);
 
 // // Load GLTF model using GLTFModelLoader class
@@ -58,10 +58,11 @@ button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
-        particule.searchForAttachPoint(); //get vf
+        particule.searchForAttachPoint(cube); //get vf
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
-        scene.add(simpleVector);
+        scene.add(simpleVector2);
+        //scene.add(simpleVector);
 
 
     }
@@ -81,7 +82,7 @@ ground.addToScene(scene);
 
 // Particles rope
 const particles = [];
-for (let i = 0; i < 4; i++) { //TODO CHANGE TO 50
+for (let i = 0; i < 2; i++) { //TODO CHANGE TO 50
     const particule = new Particule(0.5, 32, 16,
         new THREE.Vector3(
             Math.random() - .5,

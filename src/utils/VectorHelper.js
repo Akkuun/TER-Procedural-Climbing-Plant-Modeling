@@ -2,23 +2,28 @@ import * as THREE from 'three';
 
 // Function that displays a vector in the scene
 export function displayVectorVf(particule) {
+    if(particule.vf == null){
+        return;
+    }
     const direction = particule.vf.clone().normalize();
     const origin = particule.mesh.position.clone().add(particule.vf.clone().multiplyScalar(particule.lengthY/2));
     const length = 1; // Adjust the length as needed
     const color = particule.material.color.getHex(); // Red color for the arrow
-    const arrowHelper = new THREE.ArrowHelper(direction, origin, length, particule.material.color.getHex())
+    const arrowHelper = new THREE.ArrowHelper(direction, origin, length,color)
 
     return arrowHelper;
 }
-
+//vs is the vector pointing toward the clostest point of the surface
 export function displayVectorVs(particule) {
-    console.log(particule);
-    const direction = particule.vs.clone().normalize();
-    const origin = particule.mesh.position.clone();
+    if(particule.vs == null){
+        return;
+    }
+    const direction = particule.vs;
+    const origin = particule.mesh.position.add(particule.vs.clone().multiplyScalar(particule.lengthY/2));
     const length = 1; // Adjust the length as needed
-    const color = 0x00ff00; // Green color for the arrow
+    const color = particule.material.color.getHex(); // Red color for the arrow
+    const arrowHelper = new THREE.ArrowHelper(direction, origin, length, color)
 
-    const arrowHelper = new THREE.ArrowHelper(direction, origin, length, color);
     return arrowHelper;
 }
 
