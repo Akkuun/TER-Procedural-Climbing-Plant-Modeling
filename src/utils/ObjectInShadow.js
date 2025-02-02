@@ -32,6 +32,10 @@ export function isObjectInShadow(light, object) {
     return !frustum.containsPoint(shadow);
 }
 
+let previousLine = null;
+let listintersect = [];
+let debug = false;
+
 export function isObjectInShadowWithRay(light, object, scene) {
     const direction = new THREE.Vector3();
     const lightPosition = light.position.clone();
@@ -42,8 +46,74 @@ export function isObjectInShadowWithRay(light, object, scene) {
 
     const raycaster = new THREE.Raycaster(lightPosition, direction);
 
+    if (debug && previousLine) {
+        scene.remove(previousLine);
+    }
+
+
+
+    if(debug){
+        //afficher les rayon projetés
+        const geometry = new THREE.BufferGeometry().setFromPoints([lightPosition, objectPosition]);
+        const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const line = new THREE.Line(geometry, material);
+        line.name = "BLANCK";
+        scene.add(line);
+        previousLine = line;
+    }
+
+
     const intersects = raycaster.intersectObjects(scene.children, true);
 
-    //si le tableau d'intersections n'est pas vide et que l'objet intersecté n'est pas l'objet lui-même, alors l'objet est dans l'ombre
-    return intersects.length > 0 && intersects[0].object.uuid !== object.uuid;
+    if(debug && listintersect){
+        for(let i = 0; i < listintersect.length; i++){
+            scene.remove(listintersect[i]);
+        }
+    }
+
+
+
+
+    //si le tableau d'intersections est vide, alors l'objet n'est pas a l'ombre
+    if(intersects.length < 1){
+        if(debug){
+            console.log("no intersection");
+        }
+        return false;
+    }
+
+    //si on intersect un autre objet que l'objet lui même ou la lumière alors l'objet est dans l'ombre
+    for(let i = 0; i < intersects.length; i++){
+        //si l'objet intersecter est name "BLANCK" alors on ne le prend pas en compte
+        if(intersects[i].object.name === "BLANCK"){
+            continue;
+        }
+        //si le premier objet toucher est le notre alors l'objet n'est pas dans l'ombre
+        if(intersects[i].object.uuid === object.uuid){
+            if(debug){
+                console.log("no intersection");
+            }
+            return false;
+        }else{
+
+            if(debug){
+                //mettre une sphère sur l'objet qui intersecte
+                const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+                sphere.position.copy(intersects[i].point);
+                listintersect.push(sphere);
+                scene.add(sphere);
+
+                console.log(intersects[i].object);
+                console.log("intersection");
+            }
+            return true;
+        }
+
+    }
+
+    if(debug){
+        console.log("end ez");
+    }
+    return true;
+
 }

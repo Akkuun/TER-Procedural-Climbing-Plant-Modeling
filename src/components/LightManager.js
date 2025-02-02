@@ -72,17 +72,24 @@ class LightManager {
 
         //on met une ambientlight car sinon les faces non éclairées sont noires et donc si on veux une ombre plus prononcer on desactive la light
         const ambientLight = new THREE.AmbientLight(color, intensity);
+        ambientLight.name = "BLANCK";
         this.scene.add(ambientLight);
 
         const lightHelper = this.createLightHelper(light, size, colorHelper);
+        lightHelper.name="BLANCK";
+        //pour chaque enfant mettre le nom "BLANCK"
+        lightHelper.children.forEach((child) => {
+            child.name = "BLANCK";
+        });
         this.scene.add(lightHelper);
 
         if(light.shadow){
             const cameraHelper = new THREE.CameraHelper(light.shadow.camera);
+            cameraHelper.name = "BLANCK";
             this.scene.add(cameraHelper);
-            this.lights.push({ light, lightHelper, cameraHelper });
+            this.lights.push({ light, cameraHelper, lightHelper, ambientLight });
         }else{
-            this.lights.push({ light, lightHelper});
+            this.lights.push({ light, ambientLight, lightHelper });
         }
 
     }

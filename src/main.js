@@ -59,11 +59,9 @@ lightsManager.addLight(lightParams.type,lightParams, lightParams, lightParams.co
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
     lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
-    // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
-    // console.log(`RAY : Cube is in shadow: ${inShadow}`);
-    //
-    // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
-    // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
+    const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+    console.log(`RAY : Cube is in shadow: ${inShadow}`);
+
 }
 function updateCamera() {
     const light = lightsManager.lights[0].light;
@@ -77,8 +75,7 @@ function updateCamera() {
 const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
 modelLoader.applyTexture(scene);
 modelLoader.loadModel();
-// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
-// modelLoader.loadModel();
+
 
 // Chargement des textures
 const textureLoader = new THREE.TextureLoader();
@@ -105,6 +102,13 @@ let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
     roughnessMap: roughness
 }));
 ground.addToScene(scene);
+
+//boucle sur les objet contenue dans scene, si ils n'on pas de nom alors on lui en donne un qui est son type concaténé avec son index
+scene.children.forEach((object, index) => {
+    if (!object.name) {
+        object.name = object.type + index;
+    }
+});
 
 // Particles rope
 const particles = [];
@@ -143,7 +147,7 @@ cube.receiveShadow = true;
 // Ajout du cube à la scène
 scene.add(cube);
 
-//cube qui bloque la lumière sur le premier cube
+// cube qui bloque la lumière sur le premier cube
 const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
 cube2.position.z = -4;
 cube2.position.x = 2;
@@ -187,8 +191,6 @@ handleResize(camera, renderer);
 const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
 console.log(`RAY : Cube is in shadow: ${inShadow}`);
 
-const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
-console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
 
 
 // const controls = new THREE.OrbitControls(camera, renderer.domElement);
