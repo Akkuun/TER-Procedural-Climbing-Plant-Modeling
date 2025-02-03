@@ -63,7 +63,26 @@ for (let i = 0; i < 50; i++) {
     particule.addToScene(scene);
     particles.push(particule);
 }
+document.addEventListener( 'mousedown', onDocumentMouseDown );
+function onDocumentMouseDown( event ) {    
+    event.preventDefault();
+    var mouse3D = new CANNON.Vec3( ( event.clientX / window.innerWidth ),// * 2 - 1,   
+                            -( event.clientY / window.innerHeight ),// * 2 + 1,  
+                            0.5 );
+    console.log("Mouse pos : ", mouse3D)
+    var rayStart = mouse3D;
+    var rayDirection = new CANNON.Vec3(0, 0, 1);
+    var ray = new CANNON.Ray(rayStart, rayDirection);
+    var result = new CANNON.RaycastResult();
+    world.raycastClosest(rayStart, rayDirection, {}, result);
+    console.log("Result : ", result);
+    // move the object hit
+    if (result.hasHit) {
+        console.log("Hit point : ", result.hitPointWorld);
+        result.body.position += new CANNON.Vec3(0, 1, 0);
+    }
 
+}
 
 // Animation
 function animate() {
