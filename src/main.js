@@ -47,7 +47,7 @@ for (let i = 0; i < 50; i++) {
     const particule = new Particule(0.5, 32, 16,
         new THREE.Vector3(
             Math.random() * 1 - .5,
-            i * 1.8 + 5,
+            i * 1.8,
             Math.random() * 1 - .5),
         new THREE.Euler(
             0,
@@ -55,7 +55,7 @@ for (let i = 0; i < 50; i++) {
             0),
         new THREE.MeshPhongMaterial({
             color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world, 2);
+        }), new THREE.Mesh(), world, 2, i === 0);
     if (i > 0) {
         particles[i - 1].addChildParticle(particule);
     }

@@ -6,6 +6,7 @@ import * as CANNON from "cannon-es";
 import { GROUP_PLANT, GROUP_GROUND } from "../utils/Engine";
 
 export const MAX_PARTICLE_CHILDS = 4;
+export const MAX_CONSTRAINT_ANGLE = Math.PI/6;
 
 class Particule  {
     //radius: the radius of the ellipsoid
@@ -54,8 +55,9 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
      * @param {*} mesh ??
      * @param {CANNON.World} world Physics engine world
      * @param {float} lengthY Length of the ellipsoid along the y-axis
+     * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
-    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY) {
+    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY, isSeed=false) {
         this.radius = radius;
         this.widthSegments = widthSegments;
         this.heightSegments = heightSegments;
@@ -68,7 +70,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         // Physics engine
         this.world = world;
         this.physicsBody = new CANNON.Body({
-            mass: 1,
+            mass: isSeed ? 0 : 1,
             shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
@@ -144,12 +146,23 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         if (this.childParticles.length < MAX_PARTICLE_CHILDS-1){
             this.childParticles.push(childParticle);
             childParticle.setParentParticle(this);
-            let constraint = new CANNON.PointToPointConstraint(
+            // let constraint = new CANNON.PointToPointConstraint(
+            //     this.physicsBody,
+            //     this.getChildAttachPoint(),
+            //     childParticle.physicsBody,
+            //     childParticle.getParentAttachPoint()
+            // );
+            let constraint = new CANNON.ConeTwistConstraint(
                 this.physicsBody,
-                this.getChildAttachPoint(),
                 childParticle.physicsBody,
-                childParticle.getParentAttachPoint()
-            );
+                {
+                    pivotA: this.getChildAttachPoint(),
+                    pivotB: childParticle.getParentAttachPoint(),
+                    axisA: new CANNON.Vec3(0, 1, 0),
+                    axisB: new CANNON.Vec3(0, 1, 0),
+                    angle: MAX_CONSTRAINT_ANGLE
+                }
+            )
             this.world.addConstraint(constraint);
             return true;
         }
