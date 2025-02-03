@@ -71,15 +71,16 @@ function onDocumentMouseDown( event ) {
                             0.5 );
     console.log("Mouse pos : ", mouse3D)
     var rayStart = mouse3D;
-    var rayDirection = new CANNON.Vec3(0, 0, 1);
-    var ray = new CANNON.Ray(rayStart, rayDirection);
+    var rayDirection = new CANNON.Vec3(mouse3D.x, mouse3D.y, mouse3D.z + 1);
     var result = new CANNON.RaycastResult();
     world.raycastClosest(rayStart, rayDirection, {}, result);
     console.log("Result : ", result);
     // move the object hit
     if (result.hasHit) {
         console.log("Hit point : ", result.hitPointWorld);
-        result.body.position += new CANNON.Vec3(0, 1, 0);
+        //result.body.position += new CANNON.Vec3(0, 1, 0);
+        // move it up
+        result.body.position = new CANNON.Vec3(result.body.position.x, result.body.position.y + 1, result.body.position.z);
     }
 
 }

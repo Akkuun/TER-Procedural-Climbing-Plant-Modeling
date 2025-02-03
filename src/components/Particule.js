@@ -77,6 +77,7 @@ const ellipsoidMesh = new THREE.Mesh(ellipsoidGeometry, new THREE.MeshPhongMater
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
         this.physicsBody.collisionFilterGroup = GROUP_PLANT;
         this.physicsBody.collisionFilterMask = GROUP_GROUND;
+        this.physicsBody.type = isSeed ? CANNON.Body.STATIC : CANNON.Body.DYNAMIC;
         this.world.addBody(this.physicsBody);
 
         
