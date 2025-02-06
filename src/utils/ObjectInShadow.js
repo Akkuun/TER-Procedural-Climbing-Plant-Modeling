@@ -79,15 +79,28 @@ export function isObjectInShadowWithRay(light, object, scene) {
         if(debug){
             console.log("no intersection");
         }
-        return false;
+        // Si l'objet intersecté est nommé "ground" et que la lumière est en dessous, alors l'objet est dans l'ombre
+        if (lightPosition.y < scene.getObjectByName("ground").position.y) {
+            if (debug) {
+                console.log("light is below ground, object is in shadow");
+                console.log("light position", lightPosition);
+                console.log("ground position", scene.getObjectByName("ground") .object.position);
+                console.log("if : ", lightPosition.y < scene.getObjectByName("ground") .object.position.y);
+            }
+            return true;
+        }else{
+            return false;
+        }
     }
 
     //si on intersect un autre objet que l'objet lui même ou la lumière alors l'objet est dans l'ombre
     for(let i = 0; i < intersects.length; i++){
+
         //si l'objet intersecter est name "BLANCK" alors on ne le prend pas en compte
         if(intersects[i].object.name === "BLANCK"){
             continue;
         }
+
         //si le premier objet toucher est le notre alors l'objet n'est pas dans l'ombre
         if(intersects[i].object.uuid === object.uuid){
             if(debug){
@@ -100,6 +113,7 @@ export function isObjectInShadowWithRay(light, object, scene) {
                 //mettre une sphère sur l'objet qui intersecte
                 const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.1, 32, 32), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
                 sphere.position.copy(intersects[i].point);
+                sphere.name = "BLANCK";
                 listintersect.push(sphere);
                 scene.add(sphere);
 

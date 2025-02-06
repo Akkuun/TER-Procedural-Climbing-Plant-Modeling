@@ -59,7 +59,7 @@ lightsManager.addLight(lightParams.type,lightParams, lightParams, lightParams.co
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
     lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
-    const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+    const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
     console.log(`RAY : Cube is in shadow: ${inShadow}`);
 
 }
@@ -102,6 +102,12 @@ let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
     roughnessMap: roughness
 }));
 ground.addToScene(scene);
+
+// créé le point 0 0 0 et l'ajouter a la scenne pour tester ma fonction avec les ombres
+const point = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0x000FF0 }));
+point.position.set(0, 0, 0);
+point.name = "point";
+scene.add(point);
 
 //boucle sur les objet contenue dans scene, si ils n'on pas de nom alors on lui en donne un qui est son type concaténé avec son index
 scene.children.forEach((object, index) => {
@@ -188,7 +194,7 @@ animate();
 // Gestion du redimensionnement
 handleResize(camera, renderer);
 
-const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
 console.log(`RAY : Cube is in shadow: ${inShadow}`);
 
 
