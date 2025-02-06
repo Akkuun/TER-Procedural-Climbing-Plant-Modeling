@@ -17,6 +17,7 @@ import { setupLightGUI } from './components/LightGUI.js';
 import DimensionGUIHelper from './utils/DimensionGUIHelper.js';
 import MinMaxGUIHelper from './utils/MinMaxGUIHelper.js';
 import {isObjectInShadowWithRay, isObjectInShadow} from "./utils/ObjectInShadow.js";
+import {coordonneToObject} from "./utils/coordonneToObject.js";
 
 // Création des éléments principaux
 const scene = createScene();
@@ -60,7 +61,7 @@ setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
     lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
     const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
-    console.log(`RAY : Cube is in shadow: ${inShadow}`);
+    console.log(`RAY : Point is in shadow: ${inShadow}`);
 
 }
 function updateCamera() {
@@ -104,8 +105,7 @@ let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
 ground.addToScene(scene);
 
 // créé le point 0 0 0 et l'ajouter a la scenne pour tester ma fonction avec les ombres
-const point = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0x000FF0 }));
-point.position.set(0, 0, 0);
+const point = coordonneToObject({x: 0, y: 0, z: 0});
 point.name = "point";
 scene.add(point);
 
@@ -195,7 +195,7 @@ animate();
 handleResize(camera, renderer);
 
 const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
-console.log(`RAY : Cube is in shadow: ${inShadow}`);
+console.log(`RAY : Point is in shadow: ${inShadow}`);
 
 
 
