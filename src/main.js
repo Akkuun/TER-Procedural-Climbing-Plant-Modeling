@@ -19,6 +19,9 @@ const camera = createCamera();
 const renderer = createRenderer();
 const monitor = new Monitor();
 const mouse = new THREE.Vector2();
+let prev_mouse = new THREE.Vector2();
+let mouse_down = false;
+let moving_particle = null;
 let raycaster = new THREE.Raycaster();
 
 document.body.appendChild(renderer.domElement);
@@ -33,7 +36,7 @@ modelLoader.applyTexture(scene);
 modelLoader.loadModel();
 
 // Ajout des contrôles
-setupControls(camera, renderer.domElement);
+const controls = setupControls(camera, renderer.domElement);
 
 // Setup physics world
 const world = new CANNON.World();
@@ -65,9 +68,26 @@ for (let i = 0; i < 50; i++) {
     particule.addToScene(scene);
     particles.push(particule);
 }
+
+// Toggle camera controls on / off
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'c') {
+        controls.enabled = !controls.enabled;
+    }
+});
+
+// Events for particles translation
 document.addEventListener( 'mousedown', onDocumentMouseDown );
-function onDocumentMouseDown( event ) {    
+document.addEventListener( 'mouseup', onDocumentMouseUp );
+document.addEventListener( 'mousemove', onDocumentMouseMove );
+function onDocumentMouseDown( event ) {
     event.preventDefault();
+    if (controls.enabled) return;
+    mouse_down = true;
+
+    prev_mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    prev_mouse.y = -((event.clientY / window.innerHeight) * 2 - 1);
+
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1
     mouse.y = -((event.clientY / window.innerHeight) * 2 - 1)
     
@@ -84,9 +104,29 @@ function onDocumentMouseDown( event ) {
         }
     }
     if (imax === -1) return;
-    particles[imax].mesh.material.color.setHex(Math.random() * 0xffffff);
-    particles[imax].physicsBody.position.y += 1;
+    moving_particle = particles[imax]
+    moving_particle.mesh.material.color.setHex(Math.random() * 0xffffff);
+}
+function onDocumentMouseUp( event ) {
+    event.preventDefault();
+    if (controls.enabled) return;
+    mouse_down = false;
+}
+function onDocumentMouseMove( event ) {    
+    event.preventDefault();
+    if (!mouse_down || controls.enabled || !moving_particle) return;
 
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    mouse.y = -((event.clientY / window.innerHeight) * 2 - 1)
+    
+    let translation = new THREE.Vector3();
+
+    // Needs to be fixed
+    translation.subVectors(moving_particle.mesh.position, camera.position);
+    translation.normalize();
+    translation.multiplyScalar((mouse.x - prev_mouse.x) * translation.length());
+    moving_particle.physicsBody.position = moving_particle.physicsBody.position.vadd(new CANNON.Vec3(translation.x, translation.y, translation.z));
+    
 }
 
 // Animation
