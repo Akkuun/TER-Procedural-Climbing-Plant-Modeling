@@ -18,6 +18,8 @@ const scene = createScene();
 const camera = createCamera();
 const renderer = createRenderer();
 const monitor = new Monitor();
+const mouse = new THREE.Vector2();
+let raycaster = new THREE.Raycaster();
 
 document.body.appendChild(renderer.domElement);
 
@@ -66,22 +68,24 @@ for (let i = 0; i < 50; i++) {
 document.addEventListener( 'mousedown', onDocumentMouseDown );
 function onDocumentMouseDown( event ) {    
     event.preventDefault();
-    var mouse3D = new CANNON.Vec3( ( event.clientX / window.innerWidth ),// * 2 - 1,   
-                            -( event.clientY / window.innerHeight ),// * 2 + 1,  
-                            0.5 );
-    console.log("Mouse pos : ", mouse3D)
-    var rayStart = mouse3D;
-    var rayDirection = new CANNON.Vec3(mouse3D.x, mouse3D.y, mouse3D.z + 1);
-    var result = new CANNON.RaycastResult();
-    world.raycastClosest(rayStart, rayDirection, {}, result);
-    console.log("Result : ", result);
-    // move the object hit
-    if (result.hasHit) {
-        console.log("Hit point : ", result.hitPointWorld);
-        //result.body.position += new CANNON.Vec3(0, 1, 0);
-        // move it up
-        result.body.position = new CANNON.Vec3(result.body.position.x, result.body.position.y + 1, result.body.position.z);
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    mouse.y = -((event.clientY / window.innerHeight) * 2 - 1)
+    
+    raycaster.setFromCamera(mouse, camera)
+
+    let imax = -1;
+    let lmax = 0;
+    for (let i = 0; i < particles.length; i++) {
+        const hits = raycaster.intersectObject(particles[i].mesh);
+        if (hits.length) {
+            if (hits[0].distance < lmax) continue;
+            imax = i;
+            lmax = hits[0].distance;
+        }
     }
+    if (imax === -1) return;
+    particles[imax].mesh.material.color.setHex(Math.random() * 0xffffff);
+    particles[imax].physicsBody.position.y += 1;
 
 }
 
