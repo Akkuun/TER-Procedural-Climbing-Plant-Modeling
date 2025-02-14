@@ -2,7 +2,7 @@ import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
 import { createRenderer } from './utils/Renderer';
 import LightManager from "./components/LightManager.js";
-import { setupControls } from './utils/Controls';
+import { setupCameraControls, setupDragControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
@@ -121,10 +121,6 @@ function updateCamera() {
 
 
 
-
-// Ajout des contrôles
-setupControls(camera, renderer.domElement);
-
 // Setup physics world
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
@@ -184,6 +180,21 @@ for (let i = 0; i < 50; i++) {
     particles.push(particule);
 }
 
+// Contrôles de déplacement des particules
+const dragControls = setupDragControls(particles, camera, renderer.domElement);
+dragControls.enabled = false;
+
+// Contrôles de la caméra
+const camControls = setupCameraControls(camera, renderer.domElement);
+camControls.enabled = true;
+
+// Key to switch between camera and drag controls
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'c' || event.key === 'C') {
+        camControls.enabled = !camControls.enabled;
+        dragControls.enabled = !dragControls.enabled;
+    }
+});
 // Création d'un cube
 const cubeGeometry = new THREE.BoxGeometry();
 const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
