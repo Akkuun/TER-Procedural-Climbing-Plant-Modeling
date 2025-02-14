@@ -7,3 +7,4 @@ export function createRenderer() {
     renderer.shadowMap.enabled = true;
     return renderer;
 }
+

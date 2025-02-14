@@ -1,16 +1,31 @@
 import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
-import { createRenderer } from './components/Renderer';
+import { createRenderer } from './utils/Renderer';
 import LightManager from "./components/LightManager.js";
-import { setupControls } from './components/Controls';
+import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
-import * as THREE from "three";
-import GLTFModelLoader from './utils/Loader.js';
 import * as CANNON from 'cannon-es';
-import { createCube } from './components/Cube';
-import  Particule  from './components/Particule.js';
+import Particule from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
+import {createCube} from "./components/Cube.js";
+import {displayVectorVf, displayVectorVs} from "./utils/VectorHelper.js";
+import * as THREE from 'three';
+import {
+    computeBoundsTree, disposeBoundsTree,
+    computeBatchedBoundsTree, disposeBatchedBoundsTree,
+    acceleratedRaycast,
+    MeshBVHHelper
+} from 'three-mesh-bvh';
+
+//for BVH
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+THREE.BatchedMesh.prototype.computeBoundsTree = computeBatchedBoundsTree;
+THREE.BatchedMesh.prototype.disposeBoundsTree = disposeBatchedBoundsTree;
+THREE.BatchedMesh.prototype.raycast = acceleratedRaycast;
+
 import { GROUP_PLANT, GROUP_GROUND } from './utils/Engine.js';
 import GUI from 'lil-gui';
 import { setupLightGUI } from './components/LightGUI.js';
@@ -56,6 +71,36 @@ const lightParams = {
 // Ajout de lumières
 lightsManager.addLight(lightParams.type,lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
 
+//Cube to represent the object mesh
+const cubeMathis = createCube();
+scene.add(cubeMathis.translateX(-10).translateY(0));
+
+
+// Create a BVH visualizer and add it to the scene
+const visualizer = new MeshBVHHelper(cubeMathis, 4);
+scene.add(visualizer);
+
+// // Load GLTF model using GLTFModelLoader class
+// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
+// modelLoader.applyTexture(scene);
+// modelLoader.loadModel();
+
+// button to search fix point for particle
+const button = document.createElement('button');
+button.innerHTML = "Find fix point";
+button.style.position = 'absolute';
+button.style.top = '70px';
+button.style.left = '70px';
+document.body.appendChild(button);
+button.onclick = function () {
+    for (const particule of particles) {
+        particule.searchForAttachPoint(cubeMathis); //get vf
+        let simpleVector = displayVectorVf(particule);
+        let simpleVector2 = displayVectorVs(particule);
+        scene.add(simpleVector2);
+        //scene.add(simpleVector);
+    }
+}
 // GUI controls
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
@@ -72,19 +117,9 @@ function updateCamera() {
     lightsManager.lights[0].cameraHelper.update();
 }
 
-// Load GLTF model using GLTFModelLoader class
-const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
-modelLoader.applyTexture(scene);
-modelLoader.loadModel();
 
 
-// Chargement des textures
-const textureLoader = new THREE.TextureLoader();
-const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');
-const ambientOcclusion = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_AmbientOcclusion.jpg');
-const height = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Height.jpg');
-const normal = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Normal.jpg');
-const roughness = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Roughness.jpg');
+
 
 
 // Ajout des contrôles
@@ -94,7 +129,16 @@ setupControls(camera, renderer.domElement);
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
+
+const textureLoader = new THREE.TextureLoader();
+const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');
+const ambientOcclusion = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_AmbientOcclusion.jpg');
+const height = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Height.jpg');
+const normal = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Normal.jpg');
+const roughness = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Roughness.jpg');
+
 // Ground
+//let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({color: 0x808080}));
 let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
     map: baseColor,
     aoMap: ambientOcclusion,
@@ -135,7 +179,8 @@ for (let i = 0; i < 50; i++) {
         particles[i - 1].addChildParticle(particule);
     }
     particule.createEllipsoid();
-    particule.addToScene(scene);
+    //particule.addToScene(scene);
+    scene.add(particule.mesh);
     particles.push(particule);
 }
 
@@ -188,6 +233,7 @@ function animate() {
     // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
     // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
 }
+
 // Main loop
 animate();
 
