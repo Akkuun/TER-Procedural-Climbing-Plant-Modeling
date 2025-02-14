@@ -8,13 +8,13 @@ import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
 import Particule from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
-import {createCube} from "./components/Cube.js";
-import {displayVectorVf, displayVectorVs} from "./utils/VectorHelper.js";
+import { createCube } from "./components/Cube.js";
+import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
 import * as THREE from 'three';
 import { setupLightGUI } from './components/LightGUI.js';
-import {isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
-import {coordonneToObject} from "./utils/coordonneToObject.js";
-import {lightParams} from "./components/LightManager.js";
+import { isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
+import { coordonneToObject } from "./utils/coordonneToObject.js";
+import { lightParams } from "./components/LightManager.js";
 import {
     computeBoundsTree, disposeBoundsTree,
     computeBatchedBoundsTree, disposeBatchedBoundsTree,
@@ -46,21 +46,16 @@ lightParams.height = 100;
 // Ajout de lumières
 lightsManager.addLight(lightParams);
 
-//Cube to represent the object mesh
-const cube = createCube(
-    new THREE.BoxGeometry(10, 10, 10),
-    new THREE.Vector3(-15, 0, 0)
-);
-scene.add(cube);
-
-const cube2 = createCube(
-    new THREE.BoxGeometry(6, 14, 6),
-    new THREE.Vector3(0, 0, -15)
-);
+// Add cubes to the scene
+const cubes = [
+    createCube(new THREE.BoxGeometry(10, 10, 10), new THREE.Vector3(-15, 0, 0)),
+    createCube(new THREE.BoxGeometry(6, 14, 6), new THREE.Vector3(0, 0, -15))
+];
+cubes.forEach(cube => scene.add(cube));
 scene.add(cube2);
 
 // Create a BVH visualizer and add it to the scene
-const visualizer = new MeshBVHHelper(cube, 4);
+const visualizer = new MeshBVHHelper(cube[0], 4);
 scene.add(visualizer);
 
 // // Load GLTF model using GLTFModelLoader class
@@ -125,7 +120,7 @@ let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
 ground.addToScene(scene);
 
 // créé le point 0 0 0 et l'ajouter a la scenne pour tester ma fonction avec les ombres
-const point = coordonneToObject({x: 0, y: 0, z: 0});
+const point = coordonneToObject({ x: 0, y: 0, z: 0 });
 point.name = "point";
 scene.add(point);
 
