@@ -9,6 +9,7 @@ import {Vector3} from "three";
 import {vec3} from "three/tsl";
 
 export const MAX_PARTICLE_CHILDS = 4;
+export const MAX_CONSTRAINT_ANGLE = Math.PI/6;
 
 class Particule {
     //radius: the radius of the ellipsoid
@@ -64,8 +65,9 @@ class Particule {
      * @param {*} mesh ??
      * @param {CANNON.World} world Physics engine world
      * @param {float} lengthY Length of the ellipsoid along the y-axis
+     * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
-    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY) {
+    constructor(radius, widthSegments, heightSegments, position, rotation, material, mesh, world, lengthY, isSeed=false) {
         this.radius = radius;
         this.widthSegments = widthSegments;
         this.heightSegments = heightSegments;
@@ -80,8 +82,8 @@ class Particule {
         // Physics engine
         this.world = world;
         this.physicsBody = new CANNON.Body({
-            mass: 1,
-            shape: new CANNON.Cylinder(radius, radius, lengthY * 0.9, widthSegments),
+            mass: isSeed ? 0 : 1,
+            shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
@@ -103,9 +105,9 @@ class Particule {
         this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
         // Cylinder heights follows the y-axis on the physics body so we need to match this here
         this.mesh.scale.set(1, this.lengthY, 1);
-        //activate wireframe
-        //this.mesh.material.wireframe = true;
-    }
+        this.mesh.receiveShadow = true;
+        this.mesh.castShadow = true;
+       }
 
     /**
      * Updates the position and quaternion of the mesh based on the physics body
@@ -150,12 +152,23 @@ class Particule {
         if (this.childParticles.length < MAX_PARTICLE_CHILDS - 1) {
             this.childParticles.push(childParticle);
             childParticle.setParentParticle(this);
-            let constraint = new CANNON.PointToPointConstraint(
+            // let constraint = new CANNON.PointToPointConstraint(
+            //     this.physicsBody,
+            //     this.getChildAttachPoint(),
+            //     childParticle.physicsBody,
+            //     childParticle.getParentAttachPoint()
+            // );
+            let constraint = new CANNON.ConeTwistConstraint(
                 this.physicsBody,
-                this.getChildAttachPoint(),
                 childParticle.physicsBody,
-                childParticle.getParentAttachPoint()
-            );
+                {
+                    pivotA: this.getChildAttachPoint(),
+                    pivotB: childParticle.getParentAttachPoint(),
+                    axisA: new CANNON.Vec3(0, 1, 0),
+                    axisB: new CANNON.Vec3(0, 1, 0),
+                    angle: MAX_CONSTRAINT_ANGLE
+                }
+            )
             this.world.addConstraint(constraint);
             return true;
         }
@@ -201,7 +214,7 @@ class Particule {
     getDirectionToClosestSurface(cube) {
         let origin = this.getCenterPoint();
         const direction = new THREE.Vector3();
-        const directions = this.generateDirections(270, 50); // 180° avec 36 directions
+        const directions = this.generateDirections(360, 50); // 180° avec 36 directions
         let closestIntersection = null;
         let minDistance = Infinity;
 
@@ -210,7 +223,7 @@ class Particule {
         for (const direction of directions) {
             raycaster.set(origin, direction);
             const intersects = raycaster.intersectObject(cube);
-
+            // vérifier que c'est bien le cube qu'on intersect
             if (intersects.length > 0 && intersects[0].distance < minDistance) {
                 minDistance = intersects[0].distance;
                 closestIntersection = intersects[0];
