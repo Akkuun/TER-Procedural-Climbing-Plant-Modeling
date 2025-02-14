@@ -2,7 +2,7 @@ import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
 import { createRenderer } from './utils/Renderer';
 import LightManager from "./components/LightManager.js";
-import { setupCameraControls, setupDragControls } from './utils/Controls';
+import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
@@ -39,16 +39,28 @@ const lightsManager = new LightManager(scene);
 
 document.body.appendChild(renderer.domElement);
 
+lightParams.width = 50;
+lightParams.height = 100;
+
+
 // Ajout de lumières
-lightsManager.addLight(lightParams.type, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
+lightsManager.addLight(lightParams);
 
 //Cube to represent the object mesh
-const cubeMathis = createCube();
-scene.add(cubeMathis.translateX(-10).translateY(0));
+const cube = createCube(
+    new THREE.BoxGeometry(10, 10, 10),
+    new THREE.Vector3(-15, 0, 0)
+);
+scene.add(cube);
 
+const cube2 = createCube(
+    new THREE.BoxGeometry(6, 14, 6),
+    new THREE.Vector3(0, 0, -15)
+);
+scene.add(cube2);
 
 // Create a BVH visualizer and add it to the scene
-const visualizer = new MeshBVHHelper(cubeMathis, 4);
+const visualizer = new MeshBVHHelper(cube, 4);
 scene.add(visualizer);
 
 // // Load GLTF model using GLTFModelLoader class
@@ -72,14 +84,16 @@ button.onclick = function () {
         //scene.add(simpleVector);
     }
 }
+
 // GUI controls
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
 function updateLight() {
-    lightsManager.updateLight(0, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
+    lightsManager.updateLight(0, lightParams);
     const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
     console.log(`RAY : Point is in shadow: ${inShadow}`);
 
 }
+
 function updateCamera() {
     const light = lightsManager.lights[0].light;
     light.target.updateMatrixWorld();
@@ -88,14 +102,9 @@ function updateCamera() {
     lightsManager.lights[0].cameraHelper.update();
 }
 
-
-
-
-
 // Setup physics world
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
-
 
 const textureLoader = new THREE.TextureLoader();
 const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');
@@ -151,46 +160,8 @@ for (let i = 0; i < 50; i++) {
     particles.push(particule);
 }
 
-// Contrôles de déplacement des particules
-const dragControls = setupDragControls(particles, camera, renderer.domElement);
-dragControls.enabled = false;
-
-// Contrôles de la caméra
-const camControls = setupCameraControls(camera, renderer.domElement);
-camControls.enabled = true;
-
-// Key to switch between camera and drag controls
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'c' || event.key === 'C') {
-        camControls.enabled = !camControls.enabled;
-        dragControls.enabled = !dragControls.enabled;
-    }
-});
-// Création d'un cube
-const cubeGeometry = new THREE.BoxGeometry();
-const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-// Positionnement du cube qui en hauteur fit le plan
-cube.position.x = 2;
-cube.position.y = ground.mesh.position.y;
-cube.position.y *=0.5;
-cube.name = "cube";
-cube.castShadow = true;
-cube.receiveShadow = true;
-// Ajout du cube à la scène
-scene.add(cube);
-
-// cube qui bloque la lumière sur le premier cube
-const cube2 = new THREE.Mesh(cubeGeometry, cubeMaterial);
-cube2.position.z = -4;
-cube2.position.x = 2;
-cube2.position.y = ground.mesh.position.y;
-cube2.position.y *=0.5;
-cube2.scale.set(6, 6, 6);
-cube2.castShadow = true;
-cube2.receiveShadow = true;
-scene.add(cube2);
-
+// Setup controls
+setupControls(particles, camera, renderer);
 
 // Animation
 function animate() {

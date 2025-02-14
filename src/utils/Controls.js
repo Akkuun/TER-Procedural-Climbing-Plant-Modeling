@@ -2,7 +2,30 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DragControls } from 'three/examples/jsm/controls/DragControls';
 import { Vector3 } from 'three';
 
-export function setupCameraControls(camera, domElement) {
+let dragControls;
+let camControls;
+
+export function setupControls(particles, camera, renderer) {
+    // Contrôles de déplacement des particules
+    dragControls = setupDragControls(particles, camera, renderer.domElement);
+    dragControls.enabled = false;
+
+    // Contrôles de la caméra
+    camControls = setupCameraControls(camera, renderer.domElement);
+    camControls.enabled = true;
+
+    // Key to switch between camera and drag controls
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'c' || event.key === 'C') {
+            camControls.enabled = !camControls.enabled;
+            dragControls.enabled = !dragControls.enabled;
+        }
+    });
+}
+
+
+
+function setupCameraControls(camera, domElement) {
     const controls = new OrbitControls(camera, domElement);
     controls.enableDamping = true; // Ajoute un amortissement pour une meilleure expérience utilisateur
     controls.dampingFactor = 0.05;
@@ -10,7 +33,7 @@ export function setupCameraControls(camera, domElement) {
 }
 
 let moving_particle = null;
-export function setupDragControls(particles, camera, domElement) {
+function setupDragControls(particles, camera, domElement) {
     const controls = new DragControls(particles.map(p => p.mesh), camera, domElement);
     controls.addEventListener('dragstart', function (event) {
         // Change color of selected particle
