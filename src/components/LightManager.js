@@ -1,5 +1,28 @@
 import * as THREE from 'three';
 
+// Paramètres de la lumière
+export const lightParams = {
+    type: 'DirectionalLight',
+    lx: 0,
+    ly: 11.9,
+    lz: -13,
+    tx: 0,
+    ty: 2.1,
+    tz: -1.6,
+    color: 0xffffff,
+    intensity: 1.4,
+    size: 1,
+    colorHelper: 0x000000,
+    width: 10,
+    height: 10,
+    near: 0.5,
+    far: 500,
+    zoom: 1,
+    shadowmapSizeWidth: 512,
+    shadowmapSizeHeight: 512,
+    bias: 0
+};
+
 class LightManager {
     constructor(scene) {
         this.scene = scene;

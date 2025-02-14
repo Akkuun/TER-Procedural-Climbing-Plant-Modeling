@@ -11,6 +11,10 @@ import PlaneTerrain from './components/PlaneTerrain.js';
 import {createCube} from "./components/Cube.js";
 import {displayVectorVf, displayVectorVs} from "./utils/VectorHelper.js";
 import * as THREE from 'three';
+import { setupLightGUI } from './components/LightGUI.js';
+import {isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
+import {coordonneToObject} from "./utils/coordonneToObject.js";
+import {lightParams} from "./components/LightManager.js";
 import {
     computeBoundsTree, disposeBoundsTree,
     computeBatchedBoundsTree, disposeBatchedBoundsTree,
@@ -26,14 +30,6 @@ THREE.BatchedMesh.prototype.computeBoundsTree = computeBatchedBoundsTree;
 THREE.BatchedMesh.prototype.disposeBoundsTree = disposeBatchedBoundsTree;
 THREE.BatchedMesh.prototype.raycast = acceleratedRaycast;
 
-import { GROUP_PLANT, GROUP_GROUND } from './utils/Engine.js';
-import GUI from 'lil-gui';
-import { setupLightGUI } from './components/LightGUI.js';
-import DimensionGUIHelper from './utils/DimensionGUIHelper.js';
-import MinMaxGUIHelper from './utils/MinMaxGUIHelper.js';
-import {isObjectInShadowWithRay, isObjectInShadow} from "./utils/ObjectInShadow.js";
-import {coordonneToObject} from "./utils/coordonneToObject.js";
-
 // Création des éléments principaux
 const scene = createScene();
 const camera = createCamera();
@@ -43,33 +39,8 @@ const lightsManager = new LightManager(scene);
 
 document.body.appendChild(renderer.domElement);
 
-
-// Paramètres de la lumière
-const lightParams = {
-    type: 'DirectionalLight',
-    lx: 0,
-    ly: 11.9,
-    lz: -13,
-    tx: 0,
-    ty: 2.1,
-    tz: -1.6,
-    color: 0xffffff,
-    intensity: 1.4,
-    size: 1,
-    colorHelper: 0x000000,
-    width: 10,
-    height: 10,
-    near: 0.5,
-    far: 500,
-    zoom: 1,
-    shadowmapSizeWidth: 512,
-    shadowmapSizeHeight: 512,
-    bias: 0
-};
-
-
 // Ajout de lumières
-lightsManager.addLight(lightParams.type,lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
+lightsManager.addLight(lightParams.type, lightParams, lightParams, lightParams.color, lightParams.intensity, lightParams.size, lightParams.colorHelper, lightParams, lightParams);
 
 //Cube to represent the object mesh
 const cubeMathis = createCube();
