@@ -52,10 +52,10 @@ const cubes = [
     createCube(new THREE.BoxGeometry(6, 14, 6), new THREE.Vector3(0, 0, -15))
 ];
 cubes.forEach(cube => scene.add(cube));
-scene.add(cube2);
+scene.add(cubes[0]);
 
 // Create a BVH visualizer and add it to the scene
-const visualizer = new MeshBVHHelper(cube[0], 4);
+const visualizer = new MeshBVHHelper(cubes[0], 4);
 scene.add(visualizer);
 
 // // Load GLTF model using GLTFModelLoader class
@@ -72,7 +72,7 @@ button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
-        particule.searchForAttachPoint(cubeMathis); //get vf
+        particule.searchForAttachPoint(cubes[0]); //get vf
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
         scene.add(simpleVector2);

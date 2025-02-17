@@ -10,6 +10,8 @@ import {vec3} from "three/tsl";
 
 export const MAX_PARTICLE_CHILDS = 4;
 export const MAX_CONSTRAINT_ANGLE = Math.PI/6;
+export const TWIST_ANGLE = Math.PI/6;
+export const MAX_DISTANCE_CONSTRAINT = 9;
 
 class Particule {
     //radius: the radius of the ellipsoid
@@ -53,6 +55,7 @@ class Particule {
     physicsBody; // The physics body of the ellipsoid (Cylinder shape)
     parentParticle; // The parent particle of this particle
     childParticles = []; // The child particles of this particle
+    constraints = []; // The constraints of this particle
 
     /**
      *
@@ -137,7 +140,7 @@ class Particule {
     }
 
     setParentParticle(parentParticle) {
-        parentParticle.addChildParticle(this);
+        this.parentParticle = parentParticle;
     }
 
     getParentParticle() {
@@ -167,10 +170,38 @@ class Particule {
                     pivotB: childParticle.getParentAttachPoint(),
                     axisA: new CANNON.Vec3(0, 1, 0),
                     axisB: new CANNON.Vec3(0, 1, 0),
-                    angle: MAX_CONSTRAINT_ANGLE
+                    angle: MAX_CONSTRAINT_ANGLE,
+                    twistAngle: TWIST_ANGLE,
                 }
             )
+            let distanceConstraint = new CANNON.DistanceConstraint(
+                this.physicsBody,
+                childParticle.physicsBody,
+                this.lengthY * 0.9,
+                MAX_DISTANCE_CONSTRAINT
+            );
             this.world.addConstraint(constraint);
+            this.world.addConstraint(distanceConstraint);
+            this.constraints.push(constraint);
+            this.constraints.push(distanceConstraint);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Removes a child particle from the particle
+     * @param {Particule} childParticle 
+     * @returns true if the child particle was removed successfully, false otherwise
+     */
+    removeChildParticle(childParticle) {
+        const index = this.childParticles.indexOf(childParticle);
+        if (index !== -1) {
+            this.childParticles.splice(index, 1);
+            for (const constraint of this.constraints) {
+                this.world.removeConstraint(constraint);
+            }
+            childParticle.parentParticle = null;
             return true;
         }
         return false;
