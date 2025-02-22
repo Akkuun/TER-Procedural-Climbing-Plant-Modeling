@@ -9,8 +9,8 @@ import {Vector3} from "three";
 import {vec3} from "three/tsl";
 
 export const MAX_PARTICLE_CHILDS = 4;
-export const MAX_CONSTRAINT_ANGLE = Math.PI/6;
-export const TWIST_ANGLE = Math.PI/6;
+export const MAX_CONSTRAINT_ANGLE = Math.PI/2;
+export const TWIST_ANGLE = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT = 9;
 
 class Particule {
@@ -292,5 +292,74 @@ class Particule {
 
 export default Particule;
 
+export function particleRope(scene, world, size=50) {
+    let particles = [];
+    for (let i = 0; i < size; i++) {
+        const particule = new Particule(0.5, 32, 16,
+            new THREE.Vector3(
+                Math.random() * 1 - .5,
+                i * 1.8,
+                Math.random() * 1 - .5),
+            new THREE.Euler(
+                0,
+                0,
+                0),
+            new THREE.MeshPhongMaterial({
+                color: Math.random() * 0xffffff
+            }), new THREE.Mesh(), world, 2, i === 0);
+        if (i > 0) {
+            particles[i - 1].addChildParticle(particule);
+        }
+        particule.createEllipsoid();
+        //particule.addToScene(scene);
+        scene.add(particule.mesh);
+        particles.push(particule);
+    }
+    return particles;
+}
 
+export function particleTree(scene, world, depth) {
+    let particles = [];
+    let particule = new Particule(0.5, 32, 16,
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Euler(0, 0, 0),
+        new THREE.MeshPhongMaterial({
+            color: Math.random() * 0xffffff
+        }), new THREE.Mesh(), world, 2, true);
+    particule.createEllipsoid();
+    scene.add(particule.mesh);
+    particles.push(particule);
+
+    let needsChilds = [particule];
+    for (let i = 0; i < depth; i++) {
+        let newNeedsChilds = [];
+        for (const parent of needsChilds) {
+            let numberOfChilds = Math.floor(Math.random() * 3) + 1;
+            if (numberOfChilds !== 1) {
+                numberOfChilds = Math.floor(Math.random() * 3) + 1;
+            }
+            for (let j = 0; j < numberOfChilds; j++) {
+                const child = new Particule(0.5, 32, 16,
+                    new THREE.Vector3(
+                        Math.random() * 1 - .5,
+                        parent.lengthY * 1.8,
+                        Math.random() * 1 - .5),
+                    new THREE.Euler(
+                        0,
+                        0,
+                        0),
+                    new THREE.MeshPhongMaterial({
+                        color: Math.random() * 0xffffff
+                    }), new THREE.Mesh(), world, 2);
+                parent.addChildParticle(child);
+                child.createEllipsoid();
+                scene.add(child.mesh);
+                particles.push(child);
+                newNeedsChilds.push(child);
+            }
+        }
+        needsChilds = newNeedsChilds;
+    }
+    return particles;
+}
 

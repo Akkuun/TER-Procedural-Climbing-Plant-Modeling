@@ -6,7 +6,7 @@ import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import Particule from './components/Particule.js';
+import {particleRope, particleTree} from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import { createCube } from "./components/Cube.js";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
@@ -132,31 +132,14 @@ scene.children.forEach((object, index) => {
 });
 
 // Particles rope
-const particles = [];
-for (let i = 0; i < 50; i++) {
-    const particule = new Particule(0.5, 32, 16,
-        new THREE.Vector3(
-            Math.random() * 1 - .5,
-            i * 1.8,
-            Math.random() * 1 - .5),
-        new THREE.Euler(
-            0,
-            0,
-            0),
-        new THREE.MeshPhongMaterial({
-            color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world, 2, i === 0);
-    if (i > 0) {
-        particles[i - 1].addChildParticle(particule);
-    }
-    particule.createEllipsoid();
-    //particule.addToScene(scene);
-    scene.add(particule.mesh);
-    particles.push(particule);
-}
+//const particles = particleRope(scene, world, 50);
+const particles = particleTree(scene, world, 10);
 
 // Setup controls
 setupControls(particles, camera, renderer);
+
+
+console.log("Number of particles : " + particles.length);
 
 // Animation
 function animate() {
