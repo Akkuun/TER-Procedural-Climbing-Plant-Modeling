@@ -100,6 +100,7 @@ function updateCamera() {
 // Setup physics world
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
+world.broadphase = new CANNON.SAPBroadphase(world);
 
 const textureLoader = new THREE.TextureLoader();
 const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');

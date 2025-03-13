@@ -86,12 +86,13 @@ class Particule {
         this.world = world;
         this.physicsBody = new CANNON.Body({
             mass: isSeed ? 0 : 1,
-            shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+            //shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+            shape: new CANNON.Sphere(radius),
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
         this.physicsBody.collisionFilterGroup = GROUP_PLANT;
-        this.physicsBody.collisionFilterMask = GROUP_GROUND;
+        this.physicsBody.collisionFilterMask = GROUP_GROUND | GROUP_PLANT;
         this.physicsBody.type = isSeed ? CANNON.Body.STATIC : CANNON.Body.DYNAMIC;
         this.world.addBody(this.physicsBody);
 
@@ -172,6 +173,7 @@ class Particule {
                     axisB: new CANNON.Vec3(0, 1, 0),
                     angle: MAX_CONSTRAINT_ANGLE,
                     twistAngle: TWIST_ANGLE,
+                    collideConnected: false
                 }
             )
             let distanceConstraint = new CANNON.DistanceConstraint(
