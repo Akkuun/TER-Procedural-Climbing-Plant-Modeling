@@ -9,8 +9,8 @@ import {Vector3} from "three";
 import {vec3} from "three/tsl";
 
 export const MAX_PARTICLE_CHILDS = 4;
-export const MAX_CONSTRAINT_ANGLE = Math.PI/6;
-export const TWIST_ANGLE = Math.PI/6;
+export const MAX_CONSTRAINT_ANGLE = Math.PI/2;
+export const TWIST_ANGLE = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT = 9;
 
 class Particule {
@@ -86,12 +86,13 @@ class Particule {
         this.world = world;
         this.physicsBody = new CANNON.Body({
             mass: isSeed ? 0 : 1,
-            shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+            //shape: new CANNON.Cylinder(radius, radius, lengthY*0.9, widthSegments),
+            shape: new CANNON.Sphere(radius),
         });
         this.physicsBody.position.set(position.x, position.y, position.z);
         this.physicsBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
         this.physicsBody.collisionFilterGroup = GROUP_PLANT;
-        this.physicsBody.collisionFilterMask = GROUP_GROUND;
+        this.physicsBody.collisionFilterMask = GROUP_GROUND | GROUP_PLANT;
         this.physicsBody.type = isSeed ? CANNON.Body.STATIC : CANNON.Body.DYNAMIC;
         this.world.addBody(this.physicsBody);
 
@@ -172,6 +173,7 @@ class Particule {
                     axisB: new CANNON.Vec3(0, 1, 0),
                     angle: MAX_CONSTRAINT_ANGLE,
                     twistAngle: TWIST_ANGLE,
+                    collideConnected: false
                 }
             )
             let distanceConstraint = new CANNON.DistanceConstraint(
@@ -223,7 +225,7 @@ class Particule {
      * phi : user defined parameter representing the adaption strength
      * delta_t : the time step of the simulation
      * */
-    searchForAttachPoint(cube) {
+    searchForAttachPoint(octree) {
         //cross entre vecteur getWorldDirection et 0,1,0
         const crossProduct = new THREE.Vector3()
         let WorldDirection = new THREE.Vector3();
@@ -232,9 +234,7 @@ class Particule {
         crossProduct.crossVectors(WorldDirection, up);
         this.vf = crossProduct;
 
-
-        this.vs = this.getDirectionToClosestSurface(cube);
-
+        this.vs = this.getDirectionToClosestSurface(octree);
 
         this.a_a = this.vs.clone().cross(this.vf);
         this.alpha_a = this.vs.dot(this.vf) * this.phi * this.delta_t;
@@ -243,31 +243,16 @@ class Particule {
     // launch a ray from the origin with a cone shape to find the closest surface
     // once the point is found, we can compute the vector pointing toward it
     //compute vector
-    getDirectionToClosestSurface(cube) {
-        let origin = this.getCenterPoint();
-        const direction = new THREE.Vector3();
-        const directions = this.generateDirections(360, 50); // 180° avec 36 directions
-        let closestIntersection = null;
-        let minDistance = Infinity;
-
-        const raycaster = new THREE.Raycaster();
-
-        for (const direction of directions) {
-            raycaster.set(origin, direction);
-            const intersects = raycaster.intersectObject(cube);
-            // vérifier que c'est bien le cube qu'on intersect
-            if (intersects.length > 0 && intersects[0].distance < minDistance) {
-                minDistance = intersects[0].distance;
-                closestIntersection = intersects[0];
-            }
-        }
-
-        if (closestIntersection) {
-            return closestIntersection.point.sub(origin).normalize();
-        } else {
-            return null;
-        }
-
+    getDirectionToClosestSurface(octree) {
+        // get octree closest node
+        let meshCenter = this.mesh.position.clone();
+        const closestTriangle = octree.getClosestTriangleFromPoint(meshCenter);
+        const triangleCenter = new THREE.Vector3(
+            (closestTriangle.a.x + closestTriangle.b.x + closestTriangle.c.x) / 3,
+            (closestTriangle.a.y + closestTriangle.b.y + closestTriangle.c.y) / 3,
+            (closestTriangle.a.z + closestTriangle.b.z + closestTriangle.c.z) / 3
+        );
+        return triangleCenter.sub(meshCenter).normalize();
 
     }
 
@@ -292,5 +277,74 @@ class Particule {
 
 export default Particule;
 
+export function particleRope(scene, world, size=50) {
+    let particles = [];
+    for (let i = 0; i < size; i++) {
+        const particule = new Particule(0.5, 32, 16,
+            new THREE.Vector3(
+                Math.random() * 1 - .5,
+                i * 1.8,
+                Math.random() * 1 - .5),
+            new THREE.Euler(
+                0,
+                0,
+                0),
+            new THREE.MeshPhongMaterial({
+                color: Math.random() * 0xffffff
+            }), new THREE.Mesh(), world, 2, i === 0);
+        if (i > 0) {
+            particles[i - 1].addChildParticle(particule);
+        }
+        particule.createEllipsoid();
+        //particule.addToScene(scene);
+        scene.add(particule.mesh);
+        particles.push(particule);
+    }
+    return particles;
+}
 
+export function particleTree(scene, world, depth) {
+    let particles = [];
+    let particule = new Particule(0.5, 32, 16,
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Euler(0, 0, 0),
+        new THREE.MeshPhongMaterial({
+            color: Math.random() * 0xffffff
+        }), new THREE.Mesh(), world, 2, true);
+    particule.createEllipsoid();
+    scene.add(particule.mesh);
+    particles.push(particule);
+
+    let needsChilds = [particule];
+    for (let i = 0; i < depth; i++) {
+        let newNeedsChilds = [];
+        for (const parent of needsChilds) {
+            let numberOfChilds = Math.floor(Math.random() * 3) + 1;
+            if (numberOfChilds !== 1) {
+                numberOfChilds = Math.floor(Math.random() * 3) + 1;
+            }
+            for (let j = 0; j < numberOfChilds; j++) {
+                const child = new Particule(0.5, 32, 16,
+                    new THREE.Vector3(
+                        Math.random() * 1 - .5,
+                        parent.lengthY * 1.8,
+                        Math.random() * 1 - .5),
+                    new THREE.Euler(
+                        0,
+                        0,
+                        0),
+                    new THREE.MeshPhongMaterial({
+                        color: Math.random() * 0xffffff
+                    }), new THREE.Mesh(), world, 2);
+                parent.addChildParticle(child);
+                child.createEllipsoid();
+                scene.add(child.mesh);
+                particles.push(child);
+                newNeedsChilds.push(child);
+            }
+        }
+        needsChilds = newNeedsChilds;
+    }
+    return particles;
+}
 

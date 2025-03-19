@@ -6,7 +6,7 @@ import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import Particule from './components/Particule.js';
+import {particleRope, particleTree} from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import { createCube } from "./components/Cube.js";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
@@ -21,6 +21,10 @@ import {
     acceleratedRaycast,
     MeshBVHHelper
 } from 'three-mesh-bvh';
+
+import { GLTFLoader } from './utils/GLTFLoader.js';
+import { Octree } from './utils/Octree.js';
+import { OctreeHelper, OCTREE_VISIBLE } from './utils/OctreeHelper.js';
 
 //for BVH
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -46,22 +50,57 @@ lightParams.height = 100;
 // Ajout de lumières
 lightsManager.addLight(lightParams);
 
-// Add cubes to the scene
-const cubes = [
-    createCube(new THREE.BoxGeometry(10, 10, 10), new THREE.Vector3(-15, 0, 0)),
-    createCube(new THREE.BoxGeometry(6, 14, 6), new THREE.Vector3(0, 0, -15))
-];
-cubes.forEach(cube => scene.add(cube));
-scene.add(cubes[0]);
+// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/stone_arc/scene.gltf', scene, './src/assets/GLTF/textures/stone_arc.jpeg');
+// modelLoader.loadModel(new THREE.Vector3(8, 10, 0), 20, (model, error) => {
+//     if (error) {
+//         console.error('Error loading model:', error);
+//     } else {
+//         scene.add(model);
+        
+//         console.log('Model loaded:', model);
 
-// Create a BVH visualizer and add it to the scene
-const visualizer = new MeshBVHHelper(cubes[0], 4);
-scene.add(visualizer);
+//         let visualizerArc = new MeshBVHHelper(model., 32);
+//         scene.add(visualizerArc);
+//     }
+// });
 
-// // Load GLTF model using GLTFModelLoader class
-// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/scene.gltf', scene,'./src/assets/GLTF/textures/Muchkin2_baseColor.png');
-// modelLoader.applyTexture(scene);
-// modelLoader.loadModel();
+let octree = new Octree();
+let helpers = [];
+
+const loader = new GLTFLoader().setPath('./src/assets/GLTF/stone_arc/');
+loader.load('scene.gltf', function (gltf) {
+    
+    scene.add(gltf.scene);
+
+    // scale the mesh
+    gltf.scene.scale.set(10, 10, 10);
+
+    // translate the mesh
+    gltf.scene.position.set(4, 4.5, 0);
+
+    octree.fromGraphNode(gltf.scene);
+
+    helpers.push(new OctreeHelper(octree));
+    helpers[helpers.length - 1].visible = OCTREE_VISIBLE.value;
+    scene.add(helpers[helpers.length - 1]);
+
+});
+
+// oia cat load
+loader.setPath('./src/assets/GLTF/oia_cat/');
+loader.load('scene.gltf', function (gltf) {
+    scene.add(gltf.scene);
+    gltf.scene.scale.set(10, 10, 10);
+
+    // translate the mesh
+    gltf.scene.position.set(-9, 4.5, 0);
+
+    octree.fromGraphNode(gltf.scene);
+
+    helpers.push(new OctreeHelper(octree));
+    helpers[helpers.length - 1].visible = OCTREE_VISIBLE.value;
+    scene.add(helpers[helpers.length - 1]);
+});
 
 // button to search fix point for particle
 const button = document.createElement('button');
@@ -72,7 +111,7 @@ button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
-        particule.searchForAttachPoint(cubes[0]); //get vf
+        particule.searchForAttachPoint(octree); //get vf
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
         scene.add(simpleVector2);
@@ -81,7 +120,7 @@ button.onclick = function () {
 }
 
 // GUI controls
-setupLightGUI(lightsManager, lightParams, updateLight, updateCamera);
+setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree);
 function updateLight() {
     lightsManager.updateLight(0, lightParams);
     const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
@@ -97,9 +136,16 @@ function updateCamera() {
     lightsManager.lights[0].cameraHelper.update();
 }
 
+function updateOctree() {
+    for (const helper of helpers) {
+        helper.visible = OCTREE_VISIBLE.value;
+    }
+}
+
 // Setup physics world
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
+world.broadphase = new CANNON.SAPBroadphase(world);
 
 const textureLoader = new THREE.TextureLoader();
 const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');
@@ -132,31 +178,14 @@ scene.children.forEach((object, index) => {
 });
 
 // Particles rope
-const particles = [];
-for (let i = 0; i < 50; i++) {
-    const particule = new Particule(0.5, 32, 16,
-        new THREE.Vector3(
-            Math.random() * 1 - .5,
-            i * 1.8,
-            Math.random() * 1 - .5),
-        new THREE.Euler(
-            0,
-            0,
-            0),
-        new THREE.MeshPhongMaterial({
-            color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world, 2, i === 0);
-    if (i > 0) {
-        particles[i - 1].addChildParticle(particule);
-    }
-    particule.createEllipsoid();
-    //particule.addToScene(scene);
-    scene.add(particule.mesh);
-    particles.push(particule);
-}
+const particles = particleRope(scene, world, 50);
+//const particles = particleTree(scene, world, 10);
 
 // Setup controls
 setupControls(particles, camera, renderer);
+
+
+console.log("Number of particles : " + particles.length);
 
 // Animation
 function animate() {
