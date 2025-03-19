@@ -1,8 +1,9 @@
 import GUI from 'lil-gui';
 import DimensionGUIHelper from '../utils/DimensionGUIHelper.js';
 import MinMaxGUIHelper from '../utils/MinMaxGUIHelper.js';
+import { OCTREE_VISIBLE } from '../utils/OctreeHelper.js';
 
-export function setupLightGUI(lightsManager, lightParams, updateLight, updateCamera) {
+export function setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree) {
     const gui = new GUI({ container: document.getElementById('gui-container') });
 
     const lightFolder = gui.addFolder('Light Position');
@@ -33,4 +34,7 @@ export function setupLightGUI(lightsManager, lightParams, updateLight, updateCam
     shadowFolder.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far').onChange(updateCamera);
     shadowFolder.add(lightsManager.lights[0].light.shadow.camera, 'zoom', 0.01, 1.5, 0.01).onChange(updateCamera);
     shadowFolder.open();
+
+    const octreeFolder = gui.addFolder('Octree Parameters');
+    octreeFolder.add(OCTREE_VISIBLE, "value").name("visible").onChange(updateOctree);
 }
