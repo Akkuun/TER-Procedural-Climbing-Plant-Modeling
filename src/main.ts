@@ -35,11 +35,11 @@ THREE.BatchedMesh.prototype.disposeBoundsTree = disposeBatchedBoundsTree;
 THREE.BatchedMesh.prototype.raycast = acceleratedRaycast;
 
 // Création des éléments principaux
-const scene = createScene();
-const camera = createCamera();
-const renderer = createRenderer();
-const monitor = new Monitor();
-const lightsManager = new LightManager(scene);
+const scene: THREE.Scene = createScene();
+const camera: THREE.PerspectiveCamera = createCamera();
+const renderer: THREE.WebGLRenderer = createRenderer();
+const monitor: Monitor = new Monitor();
+const lightsManager: LightManager = new LightManager(scene);
 
 document.body.appendChild(renderer.domElement);
 
@@ -95,13 +95,17 @@ lightsManager.addLight(lightParams);
 //     }
 // });
 
-let octree = new Octree();
+let octree: Octree = new Octree();
 let helpers: THREE.Object3D<THREE.Object3DEventMap>[] = [];
 
 async function initialize() {
-    const loader = new GLTFLoader();
-    const octree = new Octree();
+    const loader: GLTFLoader = new GLTFLoader();
     const helpers: THREE.Object3D[] = [];
+
+    const loaderElement = document.getElementById('loader');
+    if (loaderElement) {
+        loaderElement.style.display = 'block';
+    }
 
     try {
         // Load all models
@@ -111,12 +115,18 @@ async function initialize() {
         ]);
 
         console.log('All models loaded.');
+        if (loaderElement) {
+            loaderElement.style.display = 'none';
+        }
 
         // Start the animation loop
         animate();
 
     } catch (error) {
         console.error('Error during initialization:', error);
+        if (loaderElement) {
+            loaderElement.innerText = 'Error loading models. Check the console for details.';
+        }
     }
 }
 
