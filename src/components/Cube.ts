@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * @param {THREE.Vector3} position 
  * @returns {THREE.Mesh} a cube mesh
  */
-export function createCube(size, position) {
+export function createCube(size: null, position: { x: number; y: number; z: number; }): THREE.Mesh {
     const geometry = size == null ? new THREE.BoxGeometry(1,1,1) : size;
     const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
     const mesh = new THREE.Mesh(geometry, material);

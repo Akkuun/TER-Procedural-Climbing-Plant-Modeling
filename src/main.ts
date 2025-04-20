@@ -8,7 +8,7 @@ import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
 import {particleRope, particleTree} from './components/Particule.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
-import { createCube } from "./components/Cube.js";
+import { createCube } from "./components/Cube";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
 import * as THREE from 'three';
 import { setupLightGUI } from './components/LightGUI.js';

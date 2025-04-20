@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import Particule from '../components/Particule';
 
 // Function that displays a vector in the scene
-export function displayVectorVf(particule) {
+export function displayVectorVf(particule: Particule) : THREE.ArrowHelper | null {
     if(particule.vf == null){
-        return;
+        return null;
     }
     const direction = particule.vf.clone().normalize();
     const origin = particule.mesh.position.clone().add(particule.vf.clone().multiplyScalar(particule.lengthY/2));
@@ -14,9 +15,9 @@ export function displayVectorVf(particule) {
     return arrowHelper;
 }
 //vs is the vector pointing toward the clostest point of the surface
-export function displayVectorVs(particule) {
+export function displayVectorVs(particule: Particule) : THREE.ArrowHelper | null {
     if(particule.vs == null){
-        return;
+        return null;
     }
     const direction = particule.vs;
     const origin = particule.mesh.position.add(particule.vs.clone().multiplyScalar(particule.lengthY/2));
