@@ -11,6 +11,9 @@
     "declaration": true,                 // Generate `.d.ts` files for type definitions
     "allowJs": true,                     // Allow JavaScript files to be compiled
     "typeRoots": ["node_modules/@types"], // Specify type declaration files location
+    "paths": {
+      "three-xpbd/*": ["./src/extern/three-xpbd/*"] // Map XPBD library files
+    }
   },
   "include": [
     "src/**/*"                           // Include all files in the `src` folder
