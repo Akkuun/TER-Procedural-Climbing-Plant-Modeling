@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES6",                     // Target ECMAScript version
+    "module": "ES6",                     // Use ES6 modules
+    "moduleResolution": "node",
+    "outDir": "./dist",                  // Output directory for compiled JS files
+    "rootDir": "./src",                  // Root directory for source files
+    "strict": true,                      // Enable strict type checking
+    "esModuleInterop": true,             // Allow default imports from CommonJS modules
+    "skipLibCheck": true,                // Skip type checking of declaration files
+    "declaration": true,                 // Generate `.d.ts` files for type definitions
+    "allowJs": true,                     // Allow JavaScript files to be compiled
+    "typeRoots": ["node_modules/@types"], // Specify type declaration files location
+  },
+  "include": [
+    "src/**/*"                           // Include all files in the `src` folder
+  ],
+  "exclude": [
+    "node_modules",                      // Exclude `node_modules` folder
+    "dist"                               // Exclude output folder
+  ]
+}

@@ -46,6 +46,37 @@ document.body.appendChild(renderer.domElement);
 lightParams.width = 50;
 lightParams.height = 100;
 
+function loadModel(loader: GLTFLoader, path: string, position: THREE.Vector3, scale: number, octree: Octree, helpers: THREE.Object3D[]) {
+    return new Promise<void>((resolve, reject) => {
+        loader.setPath(path);
+        loader.load(
+            'scene.gltf',
+            (gltf: { scene: THREE.Object3D<THREE.Object3DEventMap>; }) => {
+                scene.add(gltf.scene);
+
+                // Scale and position the model
+                gltf.scene.scale.set(scale, scale, scale);
+                gltf.scene.position.copy(position);
+
+                // Add the model to the octree
+                octree.fromGraphNode(gltf.scene);
+
+                // Add an octree helper for visualization
+                const helper = new OctreeHelper(octree);
+                helper.visible = OCTREE_VISIBLE.value;
+                helpers.push(helper);
+                scene.add(helper);
+
+                resolve(); // Resolve the promise when the model is loaded
+            },
+            undefined,
+            (error: any) => {
+                console.error(`Error loading model from ${path}:`, error);
+                reject(error); // Reject the promise if there's an error
+            }
+        );
+    });
+}
 
 // Ajout de lumières
 lightsManager.addLight(lightParams);
@@ -65,42 +96,29 @@ lightsManager.addLight(lightParams);
 // });
 
 let octree = new Octree();
-let helpers = [];
+let helpers: THREE.Object3D<THREE.Object3DEventMap>[] = [];
 
-const loader = new GLTFLoader().setPath('./src/assets/GLTF/stone_arc/');
-loader.load('scene.gltf', function (gltf) {
-    
-    scene.add(gltf.scene);
+async function initialize() {
+    const loader = new GLTFLoader();
+    const octree = new Octree();
+    const helpers: THREE.Object3D[] = [];
 
-    // scale the mesh
-    gltf.scene.scale.set(10, 10, 10);
+    try {
+        // Load all models
+        await Promise.all([
+            loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 10, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, 4.5, 0), 10, octree, helpers)
+        ]);
 
-    // translate the mesh
-    gltf.scene.position.set(4, 4.5, 0);
+        console.log('All models loaded.');
 
-    octree.fromGraphNode(gltf.scene);
+        // Start the animation loop
+        animate();
 
-    helpers.push(new OctreeHelper(octree));
-    helpers[helpers.length - 1].visible = OCTREE_VISIBLE.value;
-    scene.add(helpers[helpers.length - 1]);
-
-});
-
-// oia cat load
-loader.setPath('./src/assets/GLTF/oia_cat/');
-loader.load('scene.gltf', function (gltf) {
-    scene.add(gltf.scene);
-    gltf.scene.scale.set(10, 10, 10);
-
-    // translate the mesh
-    gltf.scene.position.set(-9, 4.5, 0);
-
-    octree.fromGraphNode(gltf.scene);
-
-    helpers.push(new OctreeHelper(octree));
-    helpers[helpers.length - 1].visible = OCTREE_VISIBLE.value;
-    scene.add(helpers[helpers.length - 1]);
-});
+    } catch (error) {
+        console.error('Error during initialization:', error);
+    }
+}
 
 // button to search fix point for particle
 const button = document.createElement('button');
@@ -114,7 +132,9 @@ button.onclick = function () {
         particule.searchForAttachPoint(octree); //get vf
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
-        scene.add(simpleVector2);
+        if (simpleVector2) {
+            scene.add(simpleVector2);
+        }
         //scene.add(simpleVector);
     }
 }
@@ -195,9 +215,9 @@ function animate() {
     requestAnimationFrame(animate);
 
     // Update physics
-    world.step(1 / 60);
+   world.step(1 / 60);
     // Update particules based on physics calculations
-    for (const particule of particles) particule.update();
+   for (const particule of particles) particule.update();
 
     monitor.end();
     renderer.render(scene, camera);
@@ -212,7 +232,7 @@ function animate() {
 }
 
 // Main loop
-animate();
+initialize();
 
 // Gestion du redimensionnement
 handleResize(camera, renderer);

@@ -13,7 +13,7 @@ class PlaneTerrain {
      * @param {CANNON.World} world  Physics engine world
      * @param {float} width size of the square plane
      * @param {float} height Y position of the plane
-     * @param {THREE.MeshPhongMaterial} material Phong material of the ellipsoid (contains the color !)
+     * @param {THREE.MeshStandardMaterial} material Phong material of the ellipsoid (contains the color !)
      */
     constructor(world, width, height, material) {
         this.world = world;
