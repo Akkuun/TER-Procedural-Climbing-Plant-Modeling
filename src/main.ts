@@ -6,7 +6,8 @@ import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import {particleRope} from './components/Particle.js';
+import {particleRope} from './components/Particle';
+import Particle from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import { createCube } from "./components/Cube";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
@@ -151,14 +152,14 @@ button.onclick = function () {
 
 // GUI controls
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree);
-function updateLight() {
+function updateLight() : void {
     lightsManager.updateLight(0, lightParams);
     const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
     console.log(`RAY : Point is in shadow: ${inShadow}`);
 
 }
 
-function updateCamera() {
+function updateCamera() : void {
     const light = lightsManager.lights[0].light;
     light.target.updateMatrixWorld();
     lightsManager.lights[0].lightHelper.update();
@@ -166,14 +167,14 @@ function updateCamera() {
     lightsManager.lights[0].cameraHelper.update();
 }
 
-function updateOctree() {
+function updateOctree() : void {
     for (const helper of helpers) {
         helper.visible = OCTREE_VISIBLE.value;
     }
 }
 
 // Setup physics world
-const world = new CANNON.World();
+const world : CANNON.World = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 world.broadphase = new CANNON.SAPBroadphase(world);
 
@@ -208,7 +209,7 @@ scene.children.forEach((object, index) => {
 });
 
 // Particles rope
-const particles = particleRope(scene, world, 50);
+const particles : Particle [] = particleRope(scene, world, 50);
 //const particles = particleTree(scene, world, 10);
 
 // Setup controls

@@ -13,6 +13,13 @@ export const MAX_CONSTRAINT_ANGLE = Math.PI/2;
 export const TWIST_ANGLE = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT = 9;
 
+
+/*
+
+Keeping this file to make incoming conflicts from js -> ts easier
+
+*/
+
 class Particule {
     //radius: the radius of the ellipsoid
     //widthSegments: the number of horizontal segments

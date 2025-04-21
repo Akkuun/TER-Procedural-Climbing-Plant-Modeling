@@ -7,7 +7,6 @@ import {GROUP_PLANT, GROUP_GROUND} from "../utils/Engine";
 import {scene} from "../utils/Scene";
 import {Vector3} from "three";
 import { Octree } from "utils/Octree";
-import { World } from "cannon-es";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
@@ -44,7 +43,7 @@ class Particle {
     widthLOD : number = 32;
     heightLOD : number = 16;
     age : number = 0.0;
-    position;
+    position : THREE.Vector3;
     rotation : THREE.Euler;
     material : THREE.MeshPhongMaterial;
     mesh : THREE.Mesh = new THREE.Mesh();
@@ -58,8 +57,8 @@ class Particle {
 
 
     // Physics engine
-    world; // The physics world
-    physicsBody; // The physics body of the ellipsoid (Cylinder shape)
+    world : CANNON.World; // The physics world
+    physicsBody : CANNON.Body; // The physics body of the particle
     parentParticle : Particle | null = null; // The parent particle of this particle
     childParticles : Particle[] = []; // The child particles of this particle
     constraints : CANNON.Constraint[] = []; // The constraints of this particle
@@ -102,7 +101,7 @@ class Particle {
         this.dimensions = new THREE.Vector3(width, height, width);
     }
 
-    createEllipsoid() {
+    createEllipsoid() : void {
         this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1.0, this.widthLOD, this.heightLOD), this.material);
         this.mesh.position.set(this.position.x, this.position.y, this.position.z);
         this.mesh.quaternion.setFromEuler(this.rotation);
@@ -115,7 +114,7 @@ class Particle {
     /**
      * Updates the position and quaternion of the mesh based on the physics body
      */
-    update() {
+    update() : void {
         // Copy the position and quaternion of the physics body to the mesh at each update
         this.mesh.position.copy(this.physicsBody.position);
         this.mesh.quaternion.copy(this.physicsBody.quaternion);
@@ -262,7 +261,7 @@ class Particle {
 
 export default Particle;
 
-export function particleRope(scene: { add: (arg0: any) => void; }, world: World, size=50) : Particle[] {
+export function particleRope(scene: THREE.Scene, world: CANNON.World, size=50) : Particle[] {
     let particles = [];
     for (let i = 0; i < size; i++) {
         const particule = new Particle(

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function createRenderer() {
+export function createRenderer() : THREE.WebGLRenderer {
     const renderer = new THREE.WebGLRenderer({
         antialias: true,
         powerPreference: 'high-performance',
