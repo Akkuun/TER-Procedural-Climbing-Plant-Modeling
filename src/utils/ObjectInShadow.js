@@ -51,7 +51,6 @@ export function isObjectInShadowWithRay(light, object, scene) {
     }
 
 
-
     if(debug){
         //afficher les rayon projetés
         const geometry = new THREE.BufferGeometry().setFromPoints([lightPosition, objectPosition]);
@@ -61,7 +60,6 @@ export function isObjectInShadowWithRay(light, object, scene) {
         scene.add(line);
         previousLine = line;
     }
-
 
     const intersects = raycaster.intersectObjects(scene.children, true);
 

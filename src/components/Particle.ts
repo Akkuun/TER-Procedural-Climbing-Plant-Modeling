@@ -7,7 +7,7 @@ import {GROUP_PLANT, GROUP_GROUND} from "../utils/Engine";
 import {scene} from "../utils/Scene";
 import {Vector3} from "three";
 import { Octree } from "utils/Octree";
-import { isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
+import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
@@ -53,10 +53,10 @@ class Particle {
     vs : THREE.Vector3 = new THREE.Vector3(); // the closest vector pointing tower the surface
     phi : number = 0.5; // user defined parameter representing the adaption strength
     delta_t : number = 0.0; // the time step of the simulation
-    a_a : THREE.Vector3 = new THREE.Vector3(); // the axis
-    alpha_a : number = 0.0; // rotational angle
+    a_a : THREE.Vector3 = new THREE.Vector3(0,0,0); // the axis
+    alpha_a : number = 0.001; // rotational angle
 
-    a_p : THREE.Vector3 = new THREE.Vector3(); // the axis
+    a_p : THREE.Vector3 = new THREE.Vector3(1,0,0); // the axis
     alpha_p : number = 0.0; // rotational angle
     R : THREE.Matrix4 = new THREE.Matrix4().identity();
     R_bar : THREE.Matrix4 = new THREE.Matrix4().identity();
@@ -318,7 +318,9 @@ class Particle {
 
 
         // Calculate the occultation O
-        const O = isObjectInShadowWithRay(light, this.mesh, scene) ? 1 : 0;
+       // const O = isObjectInShadowWithRay(light, this.mesh, scene) ? 1 : 0;
+
+        const O = isObjectInShadow(light, this.mesh) ? 1 : 0;
 
         // α_p = (1 - O) * eta * ∆t
         // console.log("O:", O, "eta:", eta, "delta_t:", delta_t);
@@ -433,7 +435,7 @@ class Particle {
 
 export default Particle;
 
-export function particleRope(scene: THREE.Scene, world: CANNON.World, size=50) : Particle[] {
+export function particleRope(scene: THREE.Scene, world: CANNON.World, size=10) : Particle[] {
     let particles = [];
     for (let i = 0; i < size; i++) {
         const particule = new Particle(

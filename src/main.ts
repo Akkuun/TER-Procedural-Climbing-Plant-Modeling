@@ -13,7 +13,7 @@ import { createCube } from "./components/Cube";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
 import * as THREE from 'three';
 import { setupLightGUI } from './components/LightGUI.js';
-import { isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
+import { isObjectInShadow, isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
 import { coordonneToObject } from "./utils/coordonneToObject.js";
 import { lightParams } from "./components/LightManager.js";
 import {
@@ -242,8 +242,8 @@ function animate(currentTime : number = 0) {
         world.step(fixed_delta_t);
             // Update particules based on physics calculations
         for (const particule of particles) {
-            particule.update();
-            //particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
+            //particule.update();
+            particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
         }
 
         monitor.end();
@@ -268,6 +268,9 @@ handleResize(camera, renderer);
 
 const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
 console.log(`RAY : Point is in shadow: ${inShadow}`);
+
+const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('point'));
+console.log(`RAY : Point is in shadow: ${inShadow2}`);
 
 
 
