@@ -1,18 +1,20 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DragControls } from 'three/examples/jsm/controls/DragControls';
-import { Vector3 } from 'three';
+import { Camera, PerspectiveCamera, Vector3, WebGLRenderer, MeshPhongMaterial } from 'three';
 import { MAX_DISTANCE_CONSTRAINT } from '../components/Particule';
+import Particle from '../components/Particle';
 
-let dragControls;
-let camControls;
+
+let dragControls: DragControls;
+let camControls: OrbitControls;
 
 /**
  * 
  * @param {Particule[]} particles to apply drag controls on
- * @param {*} camera 
- * @param {*} renderer 
+ * @param {PerspectiveCamera} camera 
+ * @param {WebGLRenderer} renderer 
  */
-export function setupControls(particles, camera, renderer) {
+export function setupControls(particles: Particle[], camera: PerspectiveCamera, renderer: WebGLRenderer) {
     // Contrôles de déplacement des particules
     dragControls = setupDragControls(particles, camera, renderer.domElement);
     dragControls.enabled = false;
@@ -32,20 +34,27 @@ export function setupControls(particles, camera, renderer) {
 
 
 
-function setupCameraControls(camera, domElement) {
+function setupCameraControls(camera: Camera, domElement: HTMLElement | null | undefined) {
     const controls = new OrbitControls(camera, domElement);
     controls.enableDamping = true; // Ajoute un amortissement pour une meilleure expérience utilisateur
     controls.dampingFactor = 0.05;
     return controls;
 }
 
-let moving_particle = null;
-function setupDragControls(particles, camera, domElement) {
+let moving_particle: Particle | null = null;
+function setupDragControls(particles: any[], camera: Camera, domElement: HTMLElement | null | undefined) {
     const controls = new DragControls(particles.map(p => p.mesh), camera, domElement);
     controls.addEventListener('dragstart', function (event) {
         // Change color of selected particle
         moving_particle = particles.find(p => p.mesh === event.object);
-        moving_particle.mesh.material.color.setHex(Math.random() * 0xffffff);
+        if (moving_particle) {
+            const material = moving_particle.mesh.material;
+            if (material instanceof MeshPhongMaterial) {
+                material.color.setHex(Math.random() * 0xffffff);
+            } else {
+                console.warn("The material does not support color changes.");
+            }
+        }
     });
     
     controls.addEventListener('drag', function (event) {
@@ -54,17 +63,17 @@ function setupDragControls(particles, camera, domElement) {
             const newPosition = new Vector3();
             newPosition.copy(event.object.position);
             moving_particle.physicsBody.position.set(newPosition.x, newPosition.y, newPosition.z);
-        }
-
-        // Check distance to parent particle
-        if (moving_particle.parentParticle) {
-            console.log("Checking distance");
-            const distance = moving_particle.mesh.position.distanceTo(moving_particle.parentParticle.mesh.position);
-            const maxDistance = MAX_DISTANCE_CONSTRAINT; // Set your max distance threshold here
-            if (distance > maxDistance) {
-                moving_particle.parentParticle.removeChildParticle(moving_particle);
+            // Check distance to parent particle
+            if (moving_particle.parentParticle) {
+                console.log("Checking distance");
+                const distance = moving_particle.mesh.position.distanceTo(moving_particle.parentParticle.mesh.position);
+                const maxDistance = MAX_DISTANCE_CONSTRAINT; // Set your max distance threshold here
+                if (distance > maxDistance) {
+                    moving_particle.parentParticle.removeChildParticle(moving_particle);
+                }
             }
         }
+
     });
     
     controls.addEventListener('dragend', function (event) {
