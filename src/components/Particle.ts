@@ -265,15 +265,15 @@ class Particle {
         return this.mesh.position;
     }
 
-    findBestOccultationPoint(light, scene){
+    findBestOccultationPoint(light: { position: { distanceTo: (arg0: THREE.Vector3) => any; }; }, scene: THREE.Scene){
         if(!isObjectInShadowWithRay(light, this.mesh, scene)){ // if the particle is not in shadow, we don't need to find the best occultation point
             return null;
         }
 
         let tabPoints = [];
         let centerPoint = this.getCenterPoint();
-        let bottomPOint = new THREE.Vector3(centerPoint.x, centerPoint.y - this.lengthY/2, centerPoint.z);
-        let topPoint = new THREE.Vector3(centerPoint.x, centerPoint.y + this.lengthY/2, centerPoint.z);
+        let bottomPOint = new THREE.Vector3(centerPoint.x, centerPoint.y - this.dimensions.y/2, centerPoint.z);
+        let topPoint = new THREE.Vector3(centerPoint.x, centerPoint.y + this.dimensions.y/2, centerPoint.z);
         tabPoints.push(centerPoint);
         tabPoints.push(bottomPOint);
         tabPoints.push(topPoint);
@@ -292,7 +292,7 @@ class Particle {
     }
 
 
-    photomorphicAdaptation(light, scene, eta, delta_t){
+    photomorphicAdaptation(light: { position: THREE.Vector3Like; }, scene: THREE.Scene, eta: number, delta_t: number){
         // const bestPoint = this.findBestOccultationPoint(light, scene);
         // if (bestPoint){
         //     this.mesh.position.set(bestPoint.x, bestPoint.y, bestPoint.z);
@@ -330,7 +330,7 @@ class Particle {
     /**
      * Integrates growth by updating the particle's orientation based on the accumulated rotation matrix.
      */
-    growth() {
+    growth() : void {
         // Vérifier si a_a et a_p sont valides (non nuls)
         if (!this.a_a || this.a_a.lengthSq() === 0) {
             // console.warn("a_a is undefined or (0,0,0), setting to default (0,1,0)");
@@ -375,7 +375,7 @@ class Particle {
         this.updateOrientations(Rg);
     }
 
-    updateOrientations(Rg) {
+    updateOrientations(Rg: THREE.Matrix4) : void {
         // Assurer que les matrices sont valides avant de les multiplier
         if (this.R && !this.R.isMatrix4) {
             console.error("Matrice de rotation initiale invalide, elle doit être une instance de THREE.Matrix4");
@@ -410,7 +410,7 @@ class Particle {
         // this.mesh.updateMatrixWorld();
     }
 
-    animateGrowth(light, scene, eta, delta_t) {
+    animateGrowth(light: any, scene: THREE.Scene, eta: number, delta_t: number) : void {
         this.photomorphicAdaptation(light, scene, eta, delta_t);
         this.growth();
 
@@ -425,7 +425,7 @@ class Particle {
 
 
 
-    scale(factor) {
+    scale(factor: number) : void {
         this.mesh.scale.multiplyScalar(factor);
         this.mesh.updateMatrixWorld(); // Mettre à jour la matrice du monde
     }

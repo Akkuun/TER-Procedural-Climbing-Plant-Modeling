@@ -42,6 +42,12 @@ const renderer: THREE.WebGLRenderer = createRenderer();
 const monitor: Monitor = new Monitor();
 const lightsManager: LightManager = new LightManager(scene);
 
+const FPS : number = 60;
+const FRAME_DELAY : number = 1000 / FPS;
+let lastFrameTime : number = 0;
+const eta : number = 5;
+const fixed_delta_t : number = 1 / FPS;
+
 document.body.appendChild(renderer.domElement);
 
 lightParams.width = 50;
@@ -101,7 +107,6 @@ let helpers: THREE.Object3D<THREE.Object3DEventMap>[] = [];
 
 async function initialize() {
     const loader: GLTFLoader = new GLTFLoader();
-    const helpers: THREE.Object3D[] = [];
 
     const loaderElement = document.getElementById('loader');
     if (loaderElement) {
@@ -161,10 +166,16 @@ function updateLight() : void {
 
 function updateCamera() : void {
     const light = lightsManager.lights[0].light;
-    light.target.updateMatrixWorld();
+    if("target" in light && light.target) {
+        if (light.target instanceof THREE.Object3D) 
+        light.target.updateMatrixWorld();
+
+    }
     lightsManager.lights[0].lightHelper.update();
-    light.shadow.camera.updateProjectionMatrix();
-    lightsManager.lights[0].cameraHelper.update();
+    if (light.shadow && ( light.shadow.camera instanceof THREE.PerspectiveCamera || light.shadow.camera instanceof THREE.OrthographicCamera)) {
+        light.shadow.camera.updateProjectionMatrix();
+    }
+    lightsManager.lights[0].cameraHelper?.update();
 }
 
 function updateOctree() : void {
@@ -219,27 +230,34 @@ setupControls(particles, camera, renderer);
 console.log("Number of particles : " + particles.length);
 
 // Animation
-function animate() {
-    // Monitoring stats
-    monitor.begin();
+function animate(currentTime : number = 0) {
+    if (currentTime - lastFrameTime >= FRAME_DELAY) {
+        lastFrameTime = currentTime;
+        // Monitoring stats
+        monitor.begin();
 
-    requestAnimationFrame(animate);
+        
 
-    // Update physics
-   world.step(1 / 60);
-    // Update particules based on physics calculations
-   for (const particule of particles) particule.update();
+        // Update physics
+        world.step(fixed_delta_t);
+            // Update particules based on physics calculations
+        for (const particule of particles) {
+            particule.update();
+            //particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
+        }
 
-    monitor.end();
-    renderer.render(scene, camera);
+        monitor.end();
+        renderer.render(scene, camera);
 
-    // /!\ Danger de mort de pc /!\
-    // la clock de animate est bien trop rapide
-    // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
-    // console.log(`RAY : Cube is in shadow: ${inShadow}`);
-    //
-    // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
+        // /!\ Danger de mort de pc /!\
+        // la clock de animate est bien trop rapide
+        // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
+        // console.log(`RAY : Cube is in shadow: ${inShadow}`);
+        //
+        // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
     // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
+    }
+    requestAnimationFrame(animate);
 }
 
 // Main loop
