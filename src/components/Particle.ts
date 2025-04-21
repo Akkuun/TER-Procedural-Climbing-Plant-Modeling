@@ -7,6 +7,7 @@ import {GROUP_PLANT, GROUP_GROUND} from "../utils/Engine";
 import {scene} from "../utils/Scene";
 import {Vector3} from "three";
 import { Octree } from "utils/Octree";
+import { isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
@@ -54,6 +55,11 @@ class Particle {
     delta_t : number = 0.0; // the time step of the simulation
     a_a : THREE.Vector3 = new THREE.Vector3(); // the axis
     alpha_a : number = 0.0; // rotational angle
+
+    a_p : THREE.Vector3 = new THREE.Vector3(); // the axis
+    alpha_p : number = 0.0; // rotational angle
+    R : THREE.Matrix4 = new THREE.Matrix4().identity();
+    R_bar : THREE.Matrix4 = new THREE.Matrix4().identity();
 
 
     // Physics engine
@@ -234,6 +240,7 @@ class Particle {
         this.vs = this.getDirectionToClosestSurface(octree);
 
         this.a_a = this.vs.clone().cross(this.vf);
+        // a_a = new THREE.Vector3().crossVectors(this.vs.clone(),this.vf.clone())
         this.alpha_a = this.vs.dot(this.vf) * this.phi * this.delta_t;
     }
 
@@ -256,6 +263,171 @@ class Particle {
 
     getCenterPoint() : THREE.Vector3 {
         return this.mesh.position;
+    }
+
+    findBestOccultationPoint(light, scene){
+        if(!isObjectInShadowWithRay(light, this.mesh, scene)){ // if the particle is not in shadow, we don't need to find the best occultation point
+            return null;
+        }
+
+        let tabPoints = [];
+        let centerPoint = this.getCenterPoint();
+        let bottomPOint = new THREE.Vector3(centerPoint.x, centerPoint.y - this.lengthY/2, centerPoint.z);
+        let topPoint = new THREE.Vector3(centerPoint.x, centerPoint.y + this.lengthY/2, centerPoint.z);
+        tabPoints.push(centerPoint);
+        tabPoints.push(bottomPOint);
+        tabPoints.push(topPoint);
+
+        let bestPoint = null;
+        let minDistance = Infinity;
+        for (let point of tabPoints){
+            let distance = light.position.distanceTo(point);
+            if (distance < minDistance){
+                minDistance = distance;
+                bestPoint = point;
+            }
+        }
+
+        return bestPoint;
+    }
+
+
+    photomorphicAdaptation(light, scene, eta, delta_t){
+        // const bestPoint = this.findBestOccultationPoint(light, scene);
+        // if (bestPoint){
+        //     this.mesh.position.set(bestPoint.x, bestPoint.y, bestPoint.z);
+        // }
+        //vector to the light
+
+        // console.log("photomorphicAdaptation called");
+        // Vérifier les valeurs de vl et vf
+
+        const vl = new THREE.Vector3();
+        vl.subVectors(light.position, this.mesh.position).normalize();
+        // console.log("vl:", vl, "vf:", this.vf);
+
+
+        //a_p = vl*vf
+        // Vérifier que vf n'est pas nul avant le produit vectoriel
+        if (this.vf.lengthSq() > 0) {
+            this.a_p = new THREE.Vector3().crossVectors(vl, this.vf);
+        } else {
+            // console.warn("vf is (0,0,0), setting a_p to default (1,0,0)");
+            this.a_p = new THREE.Vector3(1, 0, 0); // Valeur par défaut
+        }
+
+
+        // Calculate the occultation O
+        const O = isObjectInShadowWithRay(light, this.mesh, scene) ? 1 : 0;
+
+        // α_p = (1 - O) * eta * ∆t
+        // console.log("O:", O, "eta:", eta, "delta_t:", delta_t);
+        this.alpha_p = (1 - O) * eta * delta_t;
+        // console.log("alpha_p:", this.alpha_p);
+
+    }
+
+    /**
+     * Integrates growth by updating the particle's orientation based on the accumulated rotation matrix.
+     */
+    growth() {
+        // Vérifier si a_a et a_p sont valides (non nuls)
+        if (!this.a_a || this.a_a.lengthSq() === 0) {
+            // console.warn("a_a is undefined or (0,0,0), setting to default (0,1,0)");
+            this.a_a = new THREE.Vector3(0, 0, 0); // Vecteur par défaut vers le haut
+        }
+
+        if (!this.a_p || this.a_p.lengthSq() === 0) {
+            // console.warn("a_p is undefined or (0,0,0), setting to default (1,0,0)");
+            this.a_p = new THREE.Vector3(1, 0, 0); // Vecteur par défaut
+        }
+
+        // Vérifier si alpha_a et alpha_p sont valides
+        if (typeof this.alpha_a === "undefined" || this.alpha_a === 0) {
+            // console.warn("alpha_a is not defined or 0, setting to a small default rotation");
+            this.alpha_a = 0.001; // Angle de rotation par défaut
+        }
+
+        if (typeof this.alpha_p === "undefined" || this.alpha_p === 0) {
+            // console.warn("alpha_p is not defined or 0, setting to a small default rotation");
+            this.alpha_p = 0; // Angle de rotation par défaut
+        }
+
+        // Calcul des matrices de rotation
+        // console.log("a_a:",this.a_a);
+        // console.log("alpha_a:",this.a_a);
+        let R_aa_alpha_a = new THREE.Matrix4().makeRotationAxis(this.a_a.clone().normalize(), this.alpha_a);
+        // console.log("R_aa_alpha_a:",R_aa_alpha_a);
+        // console.log("a_p:",this.a_p);
+        // console.log("alpha_p:",this.alpha_p);
+        let R_ap_alpha_p = new THREE.Matrix4().makeRotationAxis(this.a_p.clone().normalize(), this.alpha_p);
+        // console.log("R_ap_alpha_p:",R_ap_alpha_p);
+
+        if (!R_aa_alpha_a.isMatrix4 || !R_ap_alpha_p.isMatrix4) {
+            console.error("Invalid rotation matrices");
+            return;
+        }
+
+        // Calcul de la matrice de rotation accumulée
+        const Rg = new THREE.Matrix4().multiplyMatrices(R_aa_alpha_a, R_ap_alpha_p);
+
+        // Mettre à jour les orientations
+        this.updateOrientations(Rg);
+    }
+
+    updateOrientations(Rg) {
+        // Assurer que les matrices sont valides avant de les multiplier
+        if (this.R && !this.R.isMatrix4) {
+            console.error("Matrice de rotation initiale invalide, elle doit être une instance de THREE.Matrix4");
+            return;
+        }
+        // console.log("Rotation Matrix (R):", this.R);
+        // console.log("Rotation Matrix (Rg):", Rg);
+
+        this.R = new THREE.Matrix4().multiplyMatrices(this.R, Rg);
+        // console.log("Rotation Matrix (R):", this.R);
+
+
+        // Inverser la matrice R pour calculer R_bar
+        const R_inversed = new THREE.Matrix4().copy(this.R).invert();
+        // console.log("Rotation Matrix (R_inversed):", R_inversed);
+
+        this.R_bar = new THREE.Matrix4().multiplyMatrices(this.R_bar, R_inversed).multiply(Rg); // R_bar = R_bar * R^-1 * Rg
+        // console.log("Rotation Bar (R_bar):", this.R_bar);
+
+        // Mise à jour de la position de la particule selon l'équation (10)
+        const uf = new THREE.Vector3(0, 1, 0);  // Vecteur unitaire dans la direction Y
+        this.mesh.position.add(new THREE.Vector3().applyMatrix4(this.R_bar).applyMatrix4(new THREE.Matrix4().makeTranslation(uf.x, uf.y, uf.z)));
+
+
+        // // Réinitialisation de la matrice de l'objet
+        // this.mesh.matrix.identity();
+        //
+        // // Appliquer la rotation à la matrice de l'objet
+        // this.mesh.applyMatrix4(this.R);
+        //
+        // // Mise à jour de la matrice du monde
+        // this.mesh.updateMatrixWorld();
+    }
+
+    animateGrowth(light, scene, eta, delta_t) {
+        this.photomorphicAdaptation(light, scene, eta, delta_t);
+        this.growth();
+
+        // Appliquer la croissance à chaque enfant récursivement
+        this.childParticles.forEach(child => {
+            child.animateGrowth(light, scene, eta, delta_t);
+        });
+
+        this.update();
+    }
+
+
+
+
+    scale(factor) {
+        this.mesh.scale.multiplyScalar(factor);
+        this.mesh.updateMatrixWorld(); // Mettre à jour la matrice du monde
     }
 }
 

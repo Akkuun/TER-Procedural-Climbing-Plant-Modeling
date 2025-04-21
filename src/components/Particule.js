@@ -244,6 +244,8 @@ class Particule {
         this.vs = this.getDirectionToClosestSurface(octree);
 
         this.a_a = this.vs.clone().cross(this.vf);
+        // new THREE.Vector3().crossVectors(this.vs.clone(),this.vf.clone())
+
         this.alpha_a = this.vs.dot(this.vf) * this.phi * this.delta_t;
     }
 
