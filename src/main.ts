@@ -6,7 +6,7 @@ import { setupControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import {particleRope, particleTree} from './components/Particule.js';
+import {particleRope} from './components/Particle.js';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import { createCube } from "./components/Cube";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
