@@ -83,14 +83,21 @@ class Particle {
      * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
     constructor(position: THREE.Vector3, rotation: THREE.Euler, material: THREE.MeshPhongMaterial, world: any, isSeed=false) {
-        this.position = new THREE.Vector3(position.x, position.y, position.z);
+        let posclone: THREE.Vector3 = position.clone();
+        this.position = new THREE.Vector3(posclone.x, posclone.y, posclone.z);
         this.rotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
         this.material = material;
 
         console.log("Particle created at position: ", position);
-        this.ellipsoidBody = new EllipsoidBody(this.dimensions, this.position);
-
+        this.ellipsoidBody = new EllipsoidBody(this.dimensions, posclone.x, posclone.y, posclone.z);
+        console.log("Particle's ellipsoid body: ", this.ellipsoidBody);
+        if (isNaN(this.ellipsoidBody.getX().x)) {
+            throw new Error("Particle's Ellipsoid body position is NaN");
+        } else {
+            console.log("Particle's ellipsoid body position: ", this.ellipsoidBody.x);
+        }
         // Physics engine
+        
         this.world = world;
         this.physicsBody = new CANNON.Body({
             mass: isSeed ? 0 : 1,
@@ -454,7 +461,7 @@ export function particleRope(scene: THREE.Scene, world: CANNON.World, size=10) :
     console.log('MIN_WIDTH:', MIN_WIDTH, 'MIN_HEIGHT:', MIN_HEIGHT);
     for (let i = 0; i < size; i++) {
 
-        const particule = new Particle(
+        let particule = new Particle(
             new THREE.Vector3(
                 0,
                 i * 2,

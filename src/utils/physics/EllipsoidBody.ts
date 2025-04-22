@@ -16,7 +16,7 @@ function mat3Add(a: THREE.Matrix3, b: THREE.Matrix3): THREE.Matrix3 {
 
 export default class EllipsoidBody {
     dimensions: THREE.Vector3 = new THREE.Vector3(); // Dimensions of the ellipsoid
-    x: THREE.Vector3 = new THREE.Vector3(); // Position
+    x: THREE.Vector3; // Position
     x_p: THREE.Vector3 = new THREE.Vector3(); // Predicted position
     x_g: THREE.Vector3 = new THREE.Vector3(); // Final goal position
     v: THREE.Vector3 = new THREE.Vector3(); // Velocity
@@ -41,12 +41,15 @@ export default class EllipsoidBody {
     parent: EllipsoidBody | null = null; // Parent ellipsoid
     depth: number = 0; // Depth of the ellipsoid in the hierarchy
 
-    constructor(dimensions: THREE.Vector3, position: THREE.Vector3) {
+    constructor(dimensions: THREE.Vector3, posX: number, posY: number, posZ: number) {
         this.updateDimensions(dimensions);
-        this.x = new THREE.Vector3().copy(position);
-        this.updateWeight();
+
+        this.x = new THREE.Vector3(posX, posY, posZ);
+        //this.updateWeight();
         //console.log("Ellipsoid created with dimensions: ", this.dimensions);
-        console.log("  Ellipsoid created with position: ", this.x);
+        console.log("  Ellipsoid created with position: ", this.x.x + ", " + this.x.y + ", " + this.x.z);
+        console.log("  Ellipsoid created with argument position: ", posX, posY, posZ);
+        
     }
 
     updateDimensions(newDimensions: THREE.Vector3) {
@@ -66,6 +69,10 @@ export default class EllipsoidBody {
     }
 
     firstStep(deltaTime: number, gravity: THREE.Vector3, externalForce: THREE.Vector3) {
+        
+        if (isNaN(this.getX().x) || isNaN(this.getX().y) || isNaN(this.getX().z)) {
+            throw new Error("EllipsoidBody position became NaN: " + this.x.toString());
+        }
         // In the first step we compute a predicted position x_p for all particles (Eq. 1)
         this.predictPosition(deltaTime, gravity, externalForce);
         // The predicted orientation q_p for each particle can be computed through an Explicit Euler integration (Eq. 16)
@@ -224,6 +231,14 @@ export default class EllipsoidBody {
     f(depth: number) : number {
         return Math.pow(0.8, depth);
     }
+    // define get and set for this.x
+    getX() : THREE.Vector3 {
+        return this.x;
+    }
+    setX(x: THREE.Vector3) {
+        this.x = x.clone();
+    }
+    
 }
 
 function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3) {
@@ -251,6 +266,12 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
         let particle = particleGroup[i];
         particle.ellipsoidBody.otherUpdates(delta_time);
     }
+
+
+
 }
 
 export { EllipsoidBody, updateParticleGroup };
+
+
+

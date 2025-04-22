@@ -244,7 +244,6 @@ function animate(currentTime : number = 0) {
         lastFrameTime = currentTime;
         // Monitoring stats
         monitor.begin();
-
         
 
         // Update physics
@@ -260,9 +259,10 @@ function animate(currentTime : number = 0) {
         // for (const particule of particles) {
         //     console.log("Particle position : " + particule.position.x + " " + particule.position.y + " " + particule.position.z);
         // }
-
-        console.log("Particle 0 ellipsoidBody : ");
-        console.log(particles[0].ellipsoidBody);
+        if (currentTime <= 2000) {
+            console.log("Particle 0 ellipsoidBody : ");
+            console.log(particles[0].ellipsoidBody);
+        }
         monitor.end();
         renderer.render(scene, camera);
 
