@@ -8,15 +8,17 @@ import {scene} from "../utils/Scene";
 import {Vector3} from "three";
 import { Octree } from "utils/Octree";
 import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
+import EllipsoidBody from "../utils/physics/EllipsoidBody";
+import { Vec3 } from "../utils/physics/Vec3";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
 export const TWIST_ANGLE : number = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT : number = 9;
 
-export const MIN_WIDTH : number = 0.25;
+export const MIN_WIDTH : number = 1.0;
 export const MAX_WIDTH : number = 1.0;
-export const MIN_HEIGHT : number = 0.5;
+export const MIN_HEIGHT : number = 2.0;
 export const MAX_HEIGHT : number = 2.0;
 
 
@@ -44,8 +46,8 @@ class Particle {
     widthLOD : number = 32;
     heightLOD : number = 16;
     age : number = 0.0;
-    position : THREE.Vector3;
-    rotation : THREE.Euler;
+    position : THREE.Vector3 = new THREE.Vector3();
+    rotation : THREE.Euler = new THREE.Euler();
     material : THREE.MeshPhongMaterial;
     mesh : THREE.Mesh = new THREE.Mesh();
     dimensions : THREE.Vector3 = new THREE.Vector3(MIN_WIDTH, MIN_HEIGHT, MIN_WIDTH);
@@ -69,6 +71,8 @@ class Particle {
     childParticles : Particle[] = []; // The child particles of this particle
     constraints : CANNON.Constraint[] = []; // The constraints of this particle
 
+    ellipsoidBody : EllipsoidBody; // The ellipsoid body of the particle
+
     /**
      *
      * @param {THREE.Vector3} position Position of the ellipsoid's center
@@ -79,9 +83,12 @@ class Particle {
      * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
     constructor(position: THREE.Vector3, rotation: THREE.Euler, material: THREE.MeshPhongMaterial, world: any, isSeed=false) {
-        this.position = position;
-        this.rotation = rotation;
+        this.position = new THREE.Vector3(position.x, position.y, position.z);
+        this.rotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
         this.material = material;
+
+        console.log("Particle created at position: ", position);
+        this.ellipsoidBody = new EllipsoidBody(this.dimensions, this.position);
 
         // Physics engine
         this.world = world;
@@ -124,6 +131,11 @@ class Particle {
         // Copy the position and quaternion of the physics body to the mesh at each update
         this.mesh.position.copy(this.physicsBody.position);
         this.mesh.quaternion.copy(this.physicsBody.quaternion);
+    }
+
+    updateEllipsoidBody() {
+        this.mesh.position.copy(this.ellipsoidBody.x);
+        this.mesh.quaternion.copy(this.ellipsoidBody.q);
     }
 
 
@@ -189,6 +201,8 @@ class Particle {
             this.world.addConstraint(distanceConstraint);
             this.constraints.push(constraint);
             this.constraints.push(distanceConstraint);
+            this.ellipsoidBody.childs.push(childParticle.ellipsoidBody);
+            childParticle.ellipsoidBody.parent = this.ellipsoidBody;
             return true;
         }
         return false;
@@ -437,12 +451,14 @@ export default Particle;
 
 export function particleRope(scene: THREE.Scene, world: CANNON.World, size=10) : Particle[] {
     let particles = [];
+    console.log('MIN_WIDTH:', MIN_WIDTH, 'MIN_HEIGHT:', MIN_HEIGHT);
     for (let i = 0; i < size; i++) {
+
         const particule = new Particle(
             new THREE.Vector3(
-                Math.random() * MIN_WIDTH - MIN_WIDTH / 2,
-                i * MIN_HEIGHT,
-                Math.random() * MIN_WIDTH - MIN_WIDTH / 2),
+                0,
+                i * 2,
+                0),
             new THREE.Euler(
                 0,
                 0,
@@ -456,7 +472,12 @@ export function particleRope(scene: THREE.Scene, world: CANNON.World, size=10) :
         particule.createEllipsoid();
         //particule.addToScene(scene);
         scene.add(particule.mesh);
+        particule.ellipsoidBody.depth = i;
         particles.push(particule);
+        if (i === 0) {
+            console.log("first particle");
+            console.log(particule);
+        }
     }
     return particles;
 }

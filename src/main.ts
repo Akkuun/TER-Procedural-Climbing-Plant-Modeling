@@ -27,6 +27,13 @@ import { GLTFLoader } from './utils/GLTFLoader.js';
 import { Octree } from './utils/Octree.js';
 import { OctreeHelper, OCTREE_VISIBLE } from './utils/OctreeHelper.js';
 
+import { Vec3 } from './utils/physics/Vec3';
+import { EllipsoidBody, updateParticleGroup } from './utils/physics/EllipsoidBody';
+
+
+let gravity = new Vec3(0, -9.81, 0);
+let externalForce = new Vec3(0, 0, 0);
+
 //for BVH
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -189,6 +196,7 @@ const world : CANNON.World = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 world.broadphase = new CANNON.SAPBroadphase(world);
 
+
 const textureLoader = new THREE.TextureLoader();
 const baseColor = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_BaseColor.jpg');
 const ambientOcclusion = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_AmbientOcclusion.jpg');
@@ -220,9 +228,10 @@ scene.children.forEach((object, index) => {
 });
 
 // Particles rope
-const particles : Particle [] = particleRope(scene, world, 50);
+const particles : Particle [] = particleRope(scene, world, 10);
 //const particles = particleTree(scene, world, 10);
-
+console.log("Particle 0 ellipsoidBody init : ");
+console.log(particles[0].ellipsoidBody);
 // Setup controls
 setupControls(particles, camera, renderer);
 
@@ -239,13 +248,21 @@ function animate(currentTime : number = 0) {
         
 
         // Update physics
-        world.step(fixed_delta_t);
+        //world.step(fixed_delta_t);
             // Update particules based on physics calculations
+        updateParticleGroup(fixed_delta_t, particles , gravity, externalForce);
         for (const particule of particles) {
             //particule.update();
-            particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
+            //particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
+            particule.updateEllipsoidBody();
         }
+        // console.log("Number of particles : " + particles.length);
+        // for (const particule of particles) {
+        //     console.log("Particle position : " + particule.position.x + " " + particule.position.y + " " + particule.position.z);
+        // }
 
+        console.log("Particle 0 ellipsoidBody : ");
+        console.log(particles[0].ellipsoidBody);
         monitor.end();
         renderer.render(scene, camera);
 

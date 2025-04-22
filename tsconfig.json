@@ -3,6 +3,7 @@
     "target": "ES6",                     // Target ECMAScript version
     "module": "ES6",                     // Use ES6 modules
     "moduleResolution": "node",
+    "lib": ["es2016", "dom"], // Add "es2016" or later
     "outDir": "./dist",                  // Output directory for compiled JS files
     "rootDir": "./src",                  // Root directory for source files
     "strict": true,                      // Enable strict type checking
@@ -11,9 +12,6 @@
     "declaration": true,                 // Generate `.d.ts` files for type definitions
     "allowJs": true,                     // Allow JavaScript files to be compiled
     "typeRoots": ["node_modules/@types"], // Specify type declaration files location
-    "paths": {
-      "three-xpbd/*": ["./src/extern/three-xpbd/*"] // Map XPBD library files
-    }
   },
   "include": [
     "src/**/*"                           // Include all files in the `src` folder
