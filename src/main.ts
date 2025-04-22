@@ -7,7 +7,8 @@ import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
 import {particleRope} from './components/Particle';
-import Particle from './components/Particle';
+import {Particle} from './components/Particle';
+import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import { createCube } from "./components/Cube";
 import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
@@ -28,8 +29,6 @@ import { Octree } from './utils/Octree.js';
 import { OctreeHelper, OCTREE_VISIBLE } from './utils/OctreeHelper.js';
 
 import { Vec3 } from './utils/physics/Vec3';
-import { EllipsoidBody, updateParticleGroup } from './utils/physics/EllipsoidBody';
-
 
 let gravity = new Vec3(0, -9.81, 0);
 let externalForce = new Vec3(0, 0, 0);
@@ -231,7 +230,7 @@ scene.children.forEach((object, index) => {
 const particles : Particle [] = particleRope(scene, world, 10);
 //const particles = particleTree(scene, world, 10);
 console.log("Particle 0 ellipsoidBody init : ");
-console.log(particles[0].ellipsoidBody);
+console.log(particles[0]);
 // Setup controls
 setupControls(particles, camera, renderer);
 
@@ -245,7 +244,9 @@ function animate(currentTime : number = 0) {
         // Monitoring stats
         monitor.begin();
         
-
+        if (currentTime) {
+            console.log("Particle 0 x_rest.y : " + particles[0].x_rest.y);
+        }
         // Update physics
         //world.step(fixed_delta_t);
             // Update particules based on physics calculations
@@ -259,10 +260,7 @@ function animate(currentTime : number = 0) {
         // for (const particule of particles) {
         //     console.log("Particle position : " + particule.position.x + " " + particule.position.y + " " + particule.position.z);
         // }
-        if (currentTime <= 2000) {
-            console.log("Particle 0 ellipsoidBody : ");
-            console.log(particles[0].ellipsoidBody);
-        }
+
         monitor.end();
         renderer.render(scene, camera);
 

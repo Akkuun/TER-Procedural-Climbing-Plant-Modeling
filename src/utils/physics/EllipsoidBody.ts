@@ -16,20 +16,20 @@ function mat3Add(a: THREE.Matrix3, b: THREE.Matrix3): THREE.Matrix3 {
 
 export default class EllipsoidBody {
     dimensions: THREE.Vector3 = new THREE.Vector3(); // Dimensions of the ellipsoid
-    x: THREE.Vector3; // Position
-    x_p: THREE.Vector3 = new THREE.Vector3(); // Predicted position
-    x_g: THREE.Vector3 = new THREE.Vector3(); // Final goal position
-    v: THREE.Vector3 = new THREE.Vector3(); // Velocity
+    x_rest: THREE.Vector3; // Position
+    x_pred: THREE.Vector3 = new THREE.Vector3(); // Predicted position
+    x_goal: THREE.Vector3 = new THREE.Vector3(); // Final goal position
+    velocity: THREE.Vector3 = new THREE.Vector3(); // Velocity
 
-    q: Quat = new Quat(); // Orientation
-    q_p: Quat = new Quat(); // Predicted orientation
+    q_rest: Quat = new Quat(); // Orientation
+    q_pred: Quat = new Quat(); // Predicted orientation
     angular_velocity: THREE.Vector3 = new THREE.Vector3(); // Angular velocity
 
     Ri: THREE.Matrix3 = new THREE.Matrix3(); // Rotation matrix
     Ai: THREE.Matrix3 = new THREE.Matrix3(); // Moment matrix
 
-    R: THREE.Matrix3 = new THREE.Matrix3(); // Group optmal rotation matrix
-    A: THREE.Matrix3 = new THREE.Matrix3(); // Group moment matrix
+    Rgroup: THREE.Matrix3 = new THREE.Matrix3(); // Group optmal rotation matrix
+    Agroup: THREE.Matrix3 = new THREE.Matrix3(); // Group moment matrix
     gc: THREE.Vector3 = new THREE.Vector3(); // Group center of mass
     gc_bar: THREE.Vector3 = new THREE.Vector3(); // Group center of mass rest
     gx_t: THREE.Vector3 = new THREE.Vector3(); // Group target position
@@ -44,10 +44,10 @@ export default class EllipsoidBody {
     constructor(dimensions: THREE.Vector3, posX: number, posY: number, posZ: number) {
         this.updateDimensions(dimensions);
 
-        this.x = new THREE.Vector3(posX, posY, posZ);
-        //this.updateWeight();
+        this.x_rest = new THREE.Vector3(posX, posY, posZ);
+        this.updateWeight();
         //console.log("Ellipsoid created with dimensions: ", this.dimensions);
-        console.log("  Ellipsoid created with position: ", this.x.x + ", " + this.x.y + ", " + this.x.z);
+        console.log("  Ellipsoid created with position: ", this.x_rest.x + ", " + this.x_rest.y + ", " + this.x_rest.z);
         console.log("  Ellipsoid created with argument position: ", posX, posY, posZ);
         
     }
@@ -57,9 +57,9 @@ export default class EllipsoidBody {
         this.mass = 4*Math.PI/3 * this.dimensions.x * this.dimensions.y * this.dimensions.z; // (Eq. 2)
         let coeff = this.mass / 5.0;
         this.Ri = new THREE.Matrix3().set(
-            1-2*this.q_p.y*this.q_p.y-2*this.q_p.z*this.q_p.z, 2*this.q_p.x*this.q_p.y-2*this.q_p.w*this.q_p.z, 2*this.q_p.x*this.q_p.z+2*this.q_p.w*this.q_p.y,
-            2*this.q_p.x*this.q_p.y+2*this.q_p.w*this.q_p.z, 1-2*this.q_p.x*this.q_p.x-2*this.q_p.z*this.q_p.z, 2*this.q_p.y*this.q_p.z-2*this.q_p.w*this.q_p.x,
-            2*this.q_p.x*this.q_p.z-2*this.q_p.w*this.q_p.y, 2*this.q_p.y*this.q_p.z+2*this.q_p.w*this.q_p.x, 1-2*this.q_p.x*this.q_p.x-2*this.q_p.y*this.q_p.y
+            1-2*this.q_pred.y*this.q_pred.y-2*this.q_pred.z*this.q_pred.z, 2*this.q_pred.x*this.q_pred.y-2*this.q_pred.w*this.q_pred.z, 2*this.q_pred.x*this.q_pred.z+2*this.q_pred.w*this.q_pred.y,
+            2*this.q_pred.x*this.q_pred.y+2*this.q_pred.w*this.q_pred.z, 1-2*this.q_pred.x*this.q_pred.x-2*this.q_pred.z*this.q_pred.z, 2*this.q_pred.y*this.q_pred.z-2*this.q_pred.w*this.q_pred.x,
+            2*this.q_pred.x*this.q_pred.z-2*this.q_pred.w*this.q_pred.y, 2*this.q_pred.y*this.q_pred.z+2*this.q_pred.w*this.q_pred.x, 1-2*this.q_pred.x*this.q_pred.x-2*this.q_pred.y*this.q_pred.y
         );
         this.Ai = new THREE.Matrix3().set(
             coeff * (this.dimensions.x*this.dimensions.x), 0, 0,
@@ -71,7 +71,7 @@ export default class EllipsoidBody {
     firstStep(deltaTime: number, gravity: THREE.Vector3, externalForce: THREE.Vector3) {
         
         if (isNaN(this.getX().x) || isNaN(this.getX().y) || isNaN(this.getX().z)) {
-            throw new Error("EllipsoidBody position became NaN: " + this.x.toString());
+            throw new Error("EllipsoidBody position became NaN: " + this.x_rest.toString());
         }
         // In the first step we compute a predicted position x_p for all particles (Eq. 1)
         this.predictPosition(deltaTime, gravity, externalForce);
@@ -80,8 +80,8 @@ export default class EllipsoidBody {
     }
 
     predictPosition(deltaTime: number, gravity: THREE.Vector3, externalForce: THREE.Vector3) {
-        this.x_p = this.x.clone()
-        .add(this.v.clone().multiplyScalar(deltaTime))
+        this.x_pred = this.x_rest.clone()
+        .add(this.velocity.clone().multiplyScalar(deltaTime))
         .add(gravity.clone().add(externalForce).multiplyScalar(deltaTime*deltaTime/2));
     }
 
@@ -89,7 +89,7 @@ export default class EllipsoidBody {
         let angular_velocity_norm = this.angular_velocity.length() * deltaTime / 2.0;
         let firstTerm = this.angular_velocity.clone().multiplyScalar(Math.sin(angular_velocity_norm));
         let secondTerm = Math.cos(angular_velocity_norm);
-        this.q_p = this.q.clone().multiply(
+        this.q_pred = this.q_rest.clone().multiply(
             new Quat(
                 firstTerm.x,
                 firstTerm.y,
@@ -122,8 +122,8 @@ export default class EllipsoidBody {
         let mass_sum = 0;
         let adjacentGroup : EllipsoidBody[] = this.getAdjacentGroup();
         for (let i = 0; i < adjacentGroup.length; i++) {
-            this.gc.add(adjacentGroup[i].x.multiplyScalar(adjacentGroup[i].mass));
-            this.gc_bar.add(adjacentGroup[i].x_p.multiplyScalar(adjacentGroup[i].mass));
+            this.gc.add(adjacentGroup[i].x_rest.multiplyScalar(adjacentGroup[i].mass));
+            this.gc_bar.add(adjacentGroup[i].x_pred.multiplyScalar(adjacentGroup[i].mass));
             mass_sum += adjacentGroup[i].mass;
         } //TODO seems sus
         this.gc.multiplyScalar(1/mass_sum);
@@ -134,7 +134,7 @@ export default class EllipsoidBody {
         let adjacentGroup : EllipsoidBody[] = this.getAdjacentGroup();
         // The dreaded (Eq. 14)
         // The total moment matrix A is computed :
-        this.A = new THREE.Matrix3().set(
+        this.Agroup = new THREE.Matrix3().set(
             0, 0, 0,
             0, 0, 0,
             0, 0, 0
@@ -142,18 +142,18 @@ export default class EllipsoidBody {
         for (let i = 0; i < adjacentGroup.length; i++) {
             let particle = adjacentGroup[i];
             let xsmi = new THREE.Matrix3().set(
-                particle.x_p.x * particle.x.x, particle.x_p.y * particle.x.x, particle.x_p.z * particle.x.x,
-                particle.x_p.x * particle.x.y, particle.x_p.y * particle.x.y, particle.x_p.z * particle.x.y,
-                particle.x_p.x * particle.x.z, particle.x_p.y * particle.x.z, particle.x_p.z * particle.x.z
+                particle.x_pred.x * particle.x_rest.x, particle.x_pred.y * particle.x_rest.x, particle.x_pred.z * particle.x_rest.x,
+                particle.x_pred.x * particle.x_rest.y, particle.x_pred.y * particle.x_rest.y, particle.x_pred.z * particle.x_rest.y,
+                particle.x_pred.x * particle.x_rest.z, particle.x_pred.y * particle.x_rest.z, particle.x_pred.z * particle.x_rest.z
             ).multiplyScalar(particle.mass);
             let csmi = new THREE.Matrix3().set(
                 particle.gc.x * particle.gc_bar.x, particle.gc.y * particle.gc_bar.x, particle.gc.z * particle.gc_bar.x,
                 particle.gc.x * particle.gc_bar.y, particle.gc.y * particle.gc_bar.y, particle.gc.z * particle.gc_bar.y,
                 particle.gc.x * particle.gc_bar.z, particle.gc.y * particle.gc_bar.z, particle.gc.z * particle.gc_bar.z
             ).multiplyScalar(-particle.mass);
-            this.A = mat3Add(this.A, particle.Ai);
-            this.A = mat3Add(this.A, xsmi);
-            this.A = mat3Add(this.A, csmi);
+            this.Agroup = mat3Add(this.Agroup, particle.Ai);
+            this.Agroup = mat3Add(this.Agroup, xsmi);
+            this.Agroup = mat3Add(this.Agroup, csmi);
         }
 
         // Now we need to find R, which is computed through SVD 
@@ -165,7 +165,7 @@ export default class EllipsoidBody {
             ];
         };
 
-        const matrix2D = matrix3To2DArray(this.A.elements);
+        const matrix2D = matrix3To2DArray(this.Agroup.elements);
         let { u, q, v } = SVD(matrix2D);
         let U = new THREE.Matrix3().set(
             u[0][0], u[0][1], u[0][2],
@@ -177,43 +177,43 @@ export default class EllipsoidBody {
             v[0][1], v[1][1], v[2][1],
             v[0][2], v[1][2], v[2][2]
         );
-        this.R = U.multiply(Vt);
+        this.Rgroup = U.multiply(Vt);
     }
 
     updateTargetPosition() {
         // We can calculate the target position for each aprticle group as (Eq. 3)
-        let xmc = this.x.sub(this.gc_bar);
+        let xmc = this.x_rest.sub(this.gc_bar);
         this.gx_t = new THREE.Vector3(
-            xmc.x * this.R.elements[0] + xmc.y * this.R.elements[1] + xmc.z * this.R.elements[2],
-            xmc.x * this.R.elements[3] + xmc.y * this.R.elements[4] + xmc.z * this.R.elements[5],
-            xmc.x * this.R.elements[6] + xmc.y * this.R.elements[7] + xmc.z * this.R.elements[8]
+            xmc.x * this.Rgroup.elements[0] + xmc.y * this.Rgroup.elements[1] + xmc.z * this.Rgroup.elements[2],
+            xmc.x * this.Rgroup.elements[3] + xmc.y * this.Rgroup.elements[4] + xmc.z * this.Rgroup.elements[5],
+            xmc.x * this.Rgroup.elements[6] + xmc.y * this.Rgroup.elements[7] + xmc.z * this.Rgroup.elements[8]
         ).add(this.gc);
     }
 
     updateGoalPosition() {
-        this.x_g = new THREE.Vector3(0, 0, 0);
+        this.x_goal = new THREE.Vector3(0, 0, 0);
         let adjacentGroup : EllipsoidBody[] = this.getAdjacentGroup();
         let W = 0;
         for (let i = 0; i < adjacentGroup.length; i++) {
             let particle = adjacentGroup[i];
-            this.x_g.add(particle.gx_t.multiplyScalar(particle.weight));
+            this.x_goal.add(particle.gx_t.multiplyScalar(particle.weight));
             W += particle.weight;
         }
-        this.x_g = this.x_g.multiplyScalar(1/W);
+        this.x_goal = this.x_goal.multiplyScalar(1/W);
     }
 
     otherUpdates(delta_time: number) {
-        this.v = this.x_p.sub(this.x).multiplyScalar(delta_time); // (Eq. 17)
+        this.velocity = this.x_pred.sub(this.x_rest).multiplyScalar(delta_time); // (Eq. 17)
 
-        this.x = this.x_g.clone(); // (Eq. 18)
+        this.x_rest = this.x_goal.clone(); // (Eq. 18)
 
         // angularvel is axis(q_p q^-1) dot angle(q_p q^-1) / delta_time (Eq. 19)
-        let qpqi = this.q_p.clone().multiply(this.q.conjugate());
+        let qpqi = this.q_pred.clone().multiply(this.q_rest.conjugate());
         let axisNorm = new THREE.Vector3(qpqi.x, qpqi.y, qpqi.z).normalize();
         let angleNorm = Math.acos(qpqi.w);
         this.angular_velocity = axisNorm.multiplyScalar(angleNorm).multiplyScalar(1.0/delta_time);
 
-        this.q = this.q_p.clone(); // (Eq. 20)
+        this.q_rest = this.q_pred.clone(); // (Eq. 20)
     }
 
     updateDepth() {
@@ -233,10 +233,10 @@ export default class EllipsoidBody {
     }
     // define get and set for this.x
     getX() : THREE.Vector3 {
-        return this.x;
+        return this.x_rest;
     }
     setX(x: THREE.Vector3) {
-        this.x = x.clone();
+        this.x_rest = x.clone();
     }
     
 }
