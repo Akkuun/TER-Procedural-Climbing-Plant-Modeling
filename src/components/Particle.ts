@@ -11,15 +11,16 @@ import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShad
 import { Vec3 } from "../utils/physics/Vec3";
 import { SVD } from "svd-js";
 import { Quat } from "../utils/physics/Quaternion";
+import { coordonneToObject } from "../utils/coordonneToObject";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
 export const TWIST_ANGLE : number = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT : number = 9;
 
-export const MIN_WIDTH : number = 0.25;
+export const MIN_WIDTH : number = 1;
 export const MAX_WIDTH : number = 1.0;
-export const MIN_HEIGHT : number = 0.5;
+export const MIN_HEIGHT : number = 2;
 export const MAX_HEIGHT : number = 2.0;
 
 const PI : number = Math.PI;
@@ -53,17 +54,16 @@ class Particle {
 
      */
 
-    widthLOD : number = 32;
-    heightLOD : number = 16;
+    widthLOD : number = 8;
+    heightLOD : number = 4;
     age : number = 0.0;
     position : THREE.Vector3 = new THREE.Vector3();
     rotation : THREE.Euler = new THREE.Euler();
-    material : THREE.MeshPhongMaterial;
+    material : THREE.MeshStandardMaterial;
     mesh : THREE.Mesh = new THREE.Mesh();
     vf : THREE.Vector3 = new THREE.Vector3(); // current forward vector of the particle
     vs : THREE.Vector3 = new THREE.Vector3(); // the closest vector pointing tower the surface
     phi : number = 0.5; // user defined parameter representing the adaption strength
-    delta_t : number = 0.0; // the time step of the simulation
     a_a : THREE.Vector3 = new THREE.Vector3(0,0,0); // the axis
     alpha_a : number = 0.001; // rotational angle
 
@@ -106,16 +106,19 @@ class Particle {
     parent: Particle | null = null; // Parent ellipsoid
     depth: number = 0; // Depth of the ellipsoid in the hierarchy
 
+    point : THREE.Points;
+    scene : THREE.Scene; // Scene of the ellipsoid
+
     /**
      *
      * @param {THREE.Vector3} position Position of the ellipsoid's center
      * @param {THREE.Euler} rotation Rotation of the ellipsoid
      * @param {THREE.MeshPhongMaterial} material Phong material of the ellipsoid (contains the color !)
      * @param {THREE.Mesh} mesh ??
-     * @param {CANNON.World} world Physics engine world
+     * @param {THREE.Scene} world Physics engine world
      * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
-    constructor(position: THREE.Vector3, rotation: THREE.Euler, material: THREE.MeshPhongMaterial, world: any, isSeed=false) {
+    constructor(position: THREE.Vector3, rotation: THREE.Euler, material: THREE.MeshStandardMaterial, scene: THREE.Scene, isSeed=false) {
         let posclone: THREE.Vector3 = position.clone();
         this.position = new THREE.Vector3(posclone.x, posclone.y, posclone.z);
         this.rotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
@@ -126,6 +129,7 @@ class Particle {
             Math.cos(rotation.x/2) * Math.cos(rotation.y/2) * Math.cos(rotation.z/2) + Math.sin(rotation.x/2) * Math.sin(rotation.y/2) * Math.sin(rotation.z/2)
         );
         this.material = material;
+        this.material.wireframe = true;
 
         console.log("Particle created at position: ", position);
         this.dimensions = new THREE.Vector3(MIN_WIDTH, MIN_HEIGHT, MIN_WIDTH);
@@ -137,6 +141,10 @@ class Particle {
         
         this.createEllipsoid();
         this.update();
+
+        this.point = coordonneToObject(this.x_rest);
+        scene.add(this.point);
+        this.scene = scene;
     }
 
     updateDimensionsBasedOnAge() : void {
@@ -164,6 +172,7 @@ class Particle {
     }
 
     updateEllipsoidBody() {
+        
         this.mesh.position.copy(this.position);
         this.mesh.quaternion.copy(this.q_current);
     }
@@ -246,7 +255,7 @@ class Particle {
      * phi : user defined parameter representing the adaption strength
      * delta_t : the time step of the simulation
      * */
-    surfaceAdaptation(octree: any) : void {
+    surfaceAdaptation(octree: any, delta_t:number) : void {
         //cross entre vecteur getWorldDirection et 0,1,0
         const crossProduct = new THREE.Vector3()
         let WorldDirection = new THREE.Vector3();
@@ -259,7 +268,7 @@ class Particle {
 
         this.a_a = this.vs.clone().cross(this.vf);
         // a_a = new THREE.Vector3().crossVectors(this.vs.clone(),this.vf.clone())
-        this.alpha_a = this.vs.dot(this.vf) * this.phi * this.delta_t;
+        this.alpha_a = this.vs.dot(this.vf) * this.phi * delta_t;
     }
 
     // launch a ray from the origin with a cone shape to find the closest surface
@@ -404,7 +413,7 @@ class Particle {
         // console.log("Rotation Matrix (R):", this.R);
         // console.log("Rotation Matrix (Rg):", Rg);
 
-        this.R = new THREE.Matrix4().multiplyMatrices(this.R, Rg);
+        this.R = new THREE.Matrix4().multiplyMatrices(this.R, this.Rg);
         // console.log("Rotation Matrix (R):", this.R);
 
 
@@ -412,12 +421,16 @@ class Particle {
         const R_inversed = new THREE.Matrix4().copy(this.R).invert();
         // console.log("Rotation Matrix (R_inversed):", R_inversed);
 
-        this.R_bar = new THREE.Matrix4().multiplyMatrices(this.R_bar, R_inversed).multiply(Rg); // R_bar = R_bar * R^-1 * Rg
+        this.R_bar = new THREE.Matrix4().multiplyMatrices(this.R_bar, R_inversed).multiply(this.Rg); // R_bar = R_bar * R^-1 * Rg
         // console.log("Rotation Bar (R_bar):", this.R_bar);
 
         // Mise à jour de la position de la particule selon l'équation (10)
         const uf = new THREE.Vector3(0, 1, 0);  // Vecteur unitaire dans la direction Y
-        this.mesh.position.add(new THREE.Vector3().applyMatrix4(this.R_bar).applyMatrix4(new THREE.Matrix4().makeTranslation(uf.x, uf.y, uf.z)));
+        if (this.parentParticle) {
+            this.x_rest = this.parentParticle.getHeadRestPosition().add(new THREE.Vector3().applyMatrix4(this.R_bar).applyMatrix4(new THREE.Matrix4().makeTranslation(uf.x, uf.y, uf.z)));
+            this.position = this.parentParticle.getHeadPosition().add(new THREE.Vector3().applyMatrix4(this.R_bar).applyMatrix4(new THREE.Matrix4().makeTranslation(uf.x, uf.y, uf.z)));
+            this.point.position.copy(this.x_rest);
+        }
 
 
         // // Réinitialisation de la matrice de l'objet
@@ -477,7 +490,21 @@ class Particle {
         this.update();
     }
 
+    getHeadPosition() : THREE.Vector3 {
+        // Rotate the vector 0,dimensions.y,0 towards the direction of the ellipsoid (vf)
+        const headPosition = new THREE.Vector3(0, this.dimensions.y, 0);
+        headPosition.applyMatrix4(this.mesh.matrixWorld);
+        headPosition.add(this.mesh.position);
+        return headPosition;
+    }
 
+    getHeadRestPosition() : THREE.Vector3 {
+        // Rotate the vector 0,dimensions.y,0 towards the direction of the ellipsoid (vf)
+        const headPosition = new THREE.Vector3(0, this.dimensions.y, 0);
+        headPosition.applyMatrix4(this.mesh.matrixWorld);
+        headPosition.add(this.x_rest);
+        return headPosition;
+    }
 
 
     scale(factor: number) : void {
@@ -485,8 +512,6 @@ class Particle {
         this.mesh.updateMatrixWorld(); // Mettre à jour la matrice du monde
     }
 
-
-    // ======== PBD PHYSICS PART
 
     updateDimensions(newDimensions: THREE.Vector3) {
         this.dimensions.copy(newDimensions);
@@ -663,6 +688,7 @@ class Particle {
             this.position.y = 0;
             this.velocity.y = 0;
         }    
+
         // angularvel is axis(q_p q^-1) dot angle(q_p q^-1) / delta_time (Eq. 19)
         let qpqi = this.q_pred.clone().multiply(this.q_current.conjugate());
         let axisNorm = new THREE.Vector3(qpqi.x, qpqi.y, qpqi.z).normalize();
@@ -699,6 +725,7 @@ class Particle {
     updateWeight() {
         this.weight = this.f(this.depth) * this.mass;
         this.material.color.setHSL(1-this.f(this.depth), 1, 0.5);
+        if (this.point) this.point.material.color.setHSL(1-this.f(this.depth), 1, 0.5);
     }
 
     f(depth: number) : number {
@@ -710,6 +737,14 @@ class Particle {
 function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3,
     light: any, scene: THREE.Scene, octree:any, eta: number, rootIndex : number=0) : void {
     particleGroup[rootIndex].recursiveWeightUpdate();
+    for (let i = 0; i < particleGroup.length; i++) {
+        let particle = particleGroup[i];
+        particle.updateDimensions(particle.dimensions);
+    }
+    for (let i = 0; i < particleGroup.length; i++) {
+        let particle = particleGroup[i];
+        //particle.mass = particle.weight;
+    }
     for (let i = 0; i < particleGroup.length; i++) {
         let particle = particleGroup[i];
         particle.firstStep(delta_time, gravity, externalForce);
@@ -738,7 +773,7 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     // Surface adaptation
     for (let i = 0; i < particleGroup.length; i++) {
         let particle = particleGroup[i];
-        particle.surfaceAdaptation(octree);
+        particle.surfaceAdaptation(octree, delta_time);
     }
     // Phototropism
     for (let i = 0; i < particleGroup.length; i++) {
@@ -766,9 +801,9 @@ function particleRope(scene: THREE.Scene, world: CANNON.World, size=10) : Partic
                 0,
                 0,
                 0),
-            new THREE.MeshPhongMaterial({
+            new THREE.MeshStandardMaterial({
                 color: Math.random() * 0xffffff
-            }), world, i === 0);
+            }), scene, i === 0);
         if (i > 0) {
             particles[i - 1].addChildParticle(particule);
         }
@@ -799,9 +834,9 @@ function horizontalParticleRope(scene: THREE.Scene, world: CANNON.World, size=10
                 0,
                 0,
                 PI/2),
-            new THREE.MeshPhongMaterial({
+            new THREE.MeshStandardMaterial({
                 color: Math.random() * 0xffffff
-            }), world, i === 0);
+            }), scene, i === 0);
         if (i > 0) {
             particles[i - 1].addChildParticle(particule);
         }

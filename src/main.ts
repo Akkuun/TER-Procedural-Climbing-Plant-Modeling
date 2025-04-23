@@ -49,7 +49,7 @@ const renderer: THREE.WebGLRenderer = createRenderer();
 const monitor: Monitor = new Monitor();
 const lightsManager: LightManager = new LightManager(scene);
 
-const FPS : number = 60;
+const FPS : number = 30;
 const FRAME_DELAY : number = 1000 / FPS;
 let lastFrameTime : number = 0;
 const eta : number = 5;
@@ -152,7 +152,7 @@ button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
-        particule.surfaceAdaptation(octree); //get vf
+        particule.surfaceAdaptation(octree, 1/FPS); 
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
         if (simpleVector2) {
