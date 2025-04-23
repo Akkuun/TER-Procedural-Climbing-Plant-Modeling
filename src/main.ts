@@ -7,6 +7,7 @@ import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
 import {particleRope} from './components/Particle';
+import { horizontalParticleRope } from './components/Particle';
 import {Particle} from './components/Particle';
 import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
@@ -30,8 +31,8 @@ import { OctreeHelper, OCTREE_VISIBLE } from './utils/OctreeHelper.js';
 
 import { Vec3 } from './utils/physics/Vec3';
 
-let gravity = new Vec3(0, -9.81, 0);
-let externalForce = new Vec3(0, 0, 0);
+let gravity = new THREE.Vector3(0, -9.81, 0);
+let externalForce = new THREE.Vector3(0, 0, 0);
 
 //for BVH
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -151,7 +152,7 @@ button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
     for (const particule of particles) {
-        particule.searchForAttachPoint(octree); //get vf
+        particule.surfaceAdaptation(octree); //get vf
         let simpleVector = displayVectorVf(particule);
         let simpleVector2 = displayVectorVs(particule);
         if (simpleVector2) {
@@ -228,6 +229,7 @@ scene.children.forEach((object, index) => {
 
 // Particles rope
 const particles : Particle [] = particleRope(scene, world, 10);
+const horizontalParticles : Particle [] = horizontalParticleRope(scene, world, 10);
 //const particles = particleTree(scene, world, 10);
 console.log("Particle 0 ellipsoidBody init : ");
 console.log(particles[0]);
@@ -244,16 +246,17 @@ function animate(currentTime : number = 0) {
         // Monitoring stats
         monitor.begin();
         
-        if (currentTime) {
-            console.log("Particle 0 x_rest.y : " + particles[0].x_rest.y);
-        }
         // Update physics
         //world.step(fixed_delta_t);
             // Update particules based on physics calculations
-        updateParticleGroup(fixed_delta_t, particles , gravity, externalForce);
+        updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
+        updateParticleGroup(fixed_delta_t, horizontalParticles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
         for (const particule of particles) {
             //particule.update();
-            //particule.animateGrowth(lightsManager.lights[0].light, scene, eta, fixed_delta_t);
+            //particule.animateGrowth(;
+            particule.updateEllipsoidBody();
+        }
+        for (const particule of horizontalParticles) {
             particule.updateEllipsoidBody();
         }
         // console.log("Number of particles : " + particles.length);
