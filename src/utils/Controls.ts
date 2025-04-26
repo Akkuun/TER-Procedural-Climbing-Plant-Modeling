@@ -2,7 +2,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DragControls } from 'three/examples/jsm/controls/DragControls';
 import { Camera, PerspectiveCamera, Vector3, WebGLRenderer, MeshPhongMaterial } from 'three';
 import { MAX_DISTANCE_CONSTRAINT } from '../components/Particule';
-import Particle from '../components/Particle';
+import {Particle} from '../components/Particle';
 
 
 let dragControls: DragControls;
@@ -34,7 +34,7 @@ export function setupControls(particles: Particle[], camera: PerspectiveCamera, 
 
 
 
-function setupCameraControls(camera: Camera, domElement: HTMLElement | null | undefined) {
+export function setupCameraControls(camera: Camera, domElement: HTMLElement | null | undefined) {
     const controls = new OrbitControls(camera, domElement);
     controls.enableDamping = true; // Ajoute un amortissement pour une meilleure expérience utilisateur
     controls.dampingFactor = 0.05;

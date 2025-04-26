@@ -2,7 +2,7 @@ import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
 import { createRenderer } from './utils/Renderer';
 import LightManager from "./components/LightManager.js";
-import { setupControls } from './utils/Controls';
+import { setupControls, setupCameraControls } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
@@ -48,6 +48,9 @@ const camera: THREE.PerspectiveCamera = createCamera();
 const renderer: THREE.WebGLRenderer = createRenderer();
 const monitor: Monitor = new Monitor();
 const lightsManager: LightManager = new LightManager(scene);
+
+let particles : Particle [] = [];
+let horizontalParticles : Particle [] = [];
 
 const FPS : number = 30;
 const FRAME_DELAY : number = 1000 / FPS;
@@ -132,6 +135,14 @@ async function initialize() {
             loaderElement.style.display = 'none';
         }
 
+        particles = particleRope(scene, 3);
+        horizontalParticles = horizontalParticleRope(scene, 3);
+
+        console.log("Particle 0 ellipsoidBody init : ");
+        console.log(particles[0]);
+
+        setupCameraControls(camera, renderer.domElement);
+
         // Start the animation loop
         animate();
 
@@ -151,15 +162,15 @@ button.style.top = '70px';
 button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
-    for (const particule of particles) {
-        particule.surfaceAdaptation(octree, 1/FPS); 
-        let simpleVector = displayVectorVf(particule);
-        let simpleVector2 = displayVectorVs(particule);
-        if (simpleVector2) {
-            scene.add(simpleVector2);
-        }
-        //scene.add(simpleVector);
-    }
+    // for (const particule of particles) {
+    //     particule.surfaceAdaptation(octree, 1/FPS); 
+    //     let simpleVector = displayVectorVf(particule);
+    //     let simpleVector2 = displayVectorVs(particule);
+    //     if (simpleVector2) {
+    //         scene.add(simpleVector2);
+    //     }
+    //     //scene.add(simpleVector);
+    // }
 }
 
 // GUI controls
@@ -227,16 +238,6 @@ scene.children.forEach((object, index) => {
     }
 });
 
-// Particles rope
-const particles : Particle [] = particleRope(scene, world, 10);
-const horizontalParticles : Particle [] = horizontalParticleRope(scene, world, 10);
-//const particles = particleTree(scene, world, 10);
-console.log("Particle 0 ellipsoidBody init : ");
-console.log(particles[0]);
-// Setup controls
-setupControls(particles, camera, renderer);
-
-
 console.log("Number of particles : " + particles.length);
 
 // Animation
@@ -251,18 +252,7 @@ function animate(currentTime : number = 0) {
             // Update particules based on physics calculations
         updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
         updateParticleGroup(fixed_delta_t, horizontalParticles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
-        for (const particule of particles) {
-            //particule.update();
-            //particule.animateGrowth(;
-            particule.updateEllipsoidBody();
-        }
-        for (const particule of horizontalParticles) {
-            particule.updateEllipsoidBody();
-        }
-        // console.log("Number of particles : " + particles.length);
-        // for (const particule of particles) {
-        //     console.log("Particle position : " + particule.position.x + " " + particule.position.y + " " + particule.position.z);
-        // }
+
 
         monitor.end();
         renderer.render(scene, camera);
