@@ -129,7 +129,7 @@ class Particle {
     depth: number; // Depth of the ellipsoid in the hierarchy
 
     hasApicalChild: boolean = false; // True if the ellipsoid has an apical child
-
+    isSeed: boolean = false; // True if the ellipsoid is the seed of the plant
 
     /**
      *
@@ -173,6 +173,13 @@ class Particle {
         this.scene.add(this.mesh);
 
         this.depth = depth;
+        this.isSeed = isSeed;
+
+        let pointAtXRest = coordonneToObject({x:this.x_rest.x, y:this.x_rest.y, z:this.x_rest.z});
+
+        pointAtXRest.material = this.material;
+        pointAtXRest.scale.set(5, 5, 5);
+        this.scene.add(pointAtXRest);
     }
 
     selfGrowth(dt: number) {
@@ -264,14 +271,18 @@ class Particle {
         let child = new Particle(
             this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y/2)),
             this.q.clone(),
-            this.material,
+            this.material.clone(),
             this.scene,
             this.depth + 1
         );
+        child.x_rest.copy(this.x_rest).add(this.getDir().clone().multiplyScalar(this.dimensions.y/2));
         child.parent = this;
         this.childs.push(child);
         particles.push(child);
         this.hasApicalChild = true;
+
+        this.updateParticleGroupsCentersOfMass();
+        child.updateParticleGroupsCentersOfMass();
     }
 
     updateMesh(): void {
@@ -317,14 +328,16 @@ class Particle {
 
     updateParticleGroupsCentersOfMass() {
         let mass_sum = 0;
+        this.c.set(0, 0, 0);
+        this.c_rest.set(0, 0, 0);
 
         let group = this.getGroup();
-        for (let i = 0; i < group.length; i++) {
-            this.c.add(group[i].x.multiplyScalar(group[i].mass));
-            this.c_rest.add(group[i].x_rest.multiplyScalar(group[i].mass));
+        let i = 0;
+        for (i = 0; i < group.length; i++) {
+            this.c.add(group[i].x.clone().multiplyScalar(group[i].mass));
+            this.c_rest.add(group[i].x_rest.clone().multiplyScalar(group[i].mass));
             mass_sum += group[i].mass;
         }
-
         this.c.multiplyScalar(1/mass_sum);
         this.c_rest.multiplyScalar(1/mass_sum);
     }
@@ -397,18 +410,30 @@ class Particle {
     }
 
     integrationScheme(dt: number) {
+        if(this.isSeed) return;
+
+        // Linear velocity
         this.v = this.x_goal.clone().sub(this.x).multiplyScalar(dt);
 
+        // Position
         this.x = this.x_goal.clone();
+        
 
-        const qpq = this.q_pred.clone().multiply(this.q.invert());
-        const angle = Math.acos(qpq.w);
-        if (angle > EPSILON) {
-            const axis = new THREE.Vector3(qpq.x, qpq.y, qpq.z).normalize();
-            this.w = axis.multiplyScalar(angle / dt);
-        } else {
-            this.w = new THREE.Vector3(0, 0, 0);
+        // Angular velocity
+        let r = this.q_pred.clone().multiply(this.q.invert());
+        if (r.w < 0) {
+            r = this.q.clone().multiply(this.q_pred.invert());
         }
+        const angle = Math.acos(r.w);
+        if (angle < EPSILON) {
+            this.w = new THREE.Vector3(0, 0, 0);
+        } else {
+            const axis = new THREE.Vector3(r.x, r.y, r.z).normalize();
+            this.w = axis.multiplyScalar(angle / dt);
+        }
+
+        // Rotation
+        this.q = this.q_pred.clone();
     }
 }
 
@@ -466,6 +491,9 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     // Correct particle's predicted position with the goal position
 
     // Integration Scheme
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.integrationScheme(delta_time);
+    });
 
     // Correct x towards the nearest anchor
 

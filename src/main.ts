@@ -226,10 +226,10 @@ let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
 }));
 ground.addToScene(scene);
 
-// créé le point 0 0 0 et l'ajouter a la scenne pour tester ma fonction avec les ombres
-const point = coordonneToObject({ x: 0, y: 0, z: 0 });
-point.name = "point";
-scene.add(point);
+// // créé le point 0 0 0 et l'ajouter a la scenne pour tester ma fonction avec les ombres
+// const point = coordonneToObject({ x: 0, y: 0, z: 0 });
+// point.name = "point";
+// scene.add(point);
 
 //boucle sur les objet contenue dans scene, si ils n'on pas de nom alors on lui en donne un qui est son type concaténé avec son index
 scene.children.forEach((object, index) => {
@@ -250,9 +250,13 @@ function animate(currentTime : number = 0) {
         // Update physics
         //world.step(fixed_delta_t);
             // Update particules based on physics calculations
-        updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
+        //updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
         updateParticleGroup(fixed_delta_t, horizontalParticles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
 
+        console.log("Particles :");
+        horizontalParticles.forEach((particle, index) => {
+            console.log(`Particle ${index}:`, particle);
+        });
 
         monitor.end();
         renderer.render(scene, camera);
