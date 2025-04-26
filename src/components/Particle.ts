@@ -18,16 +18,16 @@ export const TWIST_ANGLE : number = Math.PI/3;
 export const MAX_DISTANCE_CONSTRAINT : number = 9;
 
 export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
-export const MAX_WIDTH : number = 2;
-export const MAX_HEIGHT : number = 5;
+export const MAX_WIDTH : number = 0.5;
+export const MAX_HEIGHT : number = 1.0;
 
-export const WIDTH_GROWTH_RATE : number = 0.01;
-export const HEIGHT_GROWTH_RATE : number = 0.03;
+export const WIDTH_GROWTH_RATE : number = 0.1;
+export const HEIGHT_GROWTH_RATE : number = 0.3;
 
 export const DEFAULT_DIMENSIONS : THREE.Vector3 = new THREE.Vector3(
     SMALLEST_PARTICLE_FACTOR * MAX_WIDTH,
     SMALLEST_PARTICLE_FACTOR * MAX_WIDTH,
-    SMALLEST_PARTICLE_FACTOR * MAX_HEIGHT
+    SMALLEST_PARTICLE_FACTOR * MAX_HEIGHT,
 );
 
 export const DELTA_WIDTH : number = WIDTH_GROWTH_RATE * MAX_WIDTH;
@@ -63,6 +63,28 @@ function mat3FromQuaternion(q: THREE.Quaternion): THREE.Matrix3 {
     );
 }
 
+function matrix3To2DArray(matrix: THREE.Matrix3): number[][] {
+    const elements = matrix.elements; 
+    return [
+        // THREE.Matrix3 is stored in column-major order
+        [elements[0], elements[3], elements[6]], // Column 1
+        [elements[1], elements[4], elements[7]], // Column 2
+        [elements[2], elements[5], elements[8]], // Column 3
+    ];
+}
+
+function getRot(axis: THREE.Vector3, angle: number): THREE.Matrix3 {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const t = 1 - c;
+
+    return new THREE.Matrix3().set(
+        t * axis.x * axis.x + c, t * axis.x * axis.y - s * axis.z, t * axis.x * axis.z + s * axis.y,
+        t * axis.y * axis.x + s * axis.z, t * axis.y * axis.y + c, t * axis.y * axis.z - s * axis.x,
+        t * axis.z * axis.x - s * axis.y, t * axis.z * axis.y + s * axis.x, t * axis.z * axis.z + c
+    );
+}
+
 class Particle {
     widthLOD : number = 8;
     heightLOD : number = 4;
@@ -95,6 +117,8 @@ class Particle {
 
     A: THREE.Matrix3 = new THREE.Matrix3(); // Moment matrix
 
+    Rg: THREE.Matrix3 = new THREE.Matrix3(); // Least square optimal matrix
+
     rho: number = 0.5; // Density of the ellipsoid
 
     mass: number = 1.0; // Mass of the ellipsoid
@@ -103,6 +127,8 @@ class Particle {
     childs: Particle[] = []; // Child ellipsoids
     parent: Particle | null = null; // Parent ellipsoid
     depth: number; // Depth of the ellipsoid in the hierarchy
+
+    hasApicalChild: boolean = false; // True if the ellipsoid has an apical child
 
 
     /**
@@ -149,6 +175,18 @@ class Particle {
         this.depth = depth;
     }
 
+    selfGrowth(dt: number) {
+        if (this.dimensions.x < MAX_WIDTH) {
+            this.dimensions.x += DELTA_WIDTH * dt;
+            this.dimensions.y += DELTA_WIDTH * dt;
+        }
+        if (this.dimensions.z < MAX_HEIGHT) {
+            this.dimensions.z += DELTA_HEIGHT * dt;
+        }
+        this.updateMass();
+        this.updateMomentMatrix();
+    }
+
     rotate(angle: number, axis: THREE.Vector3) {
         this.q.multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
         this.R = mat3FromQuaternion(this.q);
@@ -162,7 +200,12 @@ class Particle {
     }
 
     updateMomentMatrix() {
-
+        const mass_5 = this.mass / 5;
+        this.A = new THREE.Matrix3().set(
+            mass_5 * (this.dimensions.y*this.dimensions.y + this.dimensions.z*this.dimensions.z), 0, 0,
+            0, mass_5 * (this.dimensions.x*this.dimensions.x + this.dimensions.z*this.dimensions.z), 0,
+            0, 0, mass_5 * (this.dimensions.x*this.dimensions.x + this.dimensions.y*this.dimensions.y)
+        );
     }
 
     updateWeight() {
@@ -184,14 +227,16 @@ class Particle {
     }
     
     createMesh() {
+        const geometry = new THREE.SphereGeometry(
+            this.dimensions.x,
+            this.widthLOD,
+            this.heightLOD
+        )
         this.mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(
-                this.dimensions.x,
-                this.widthLOD,
-                this.heightLOD
-            ),
+            geometry,
             this.material
         );
+        geometry.translate(0 , this.dimensions.y/2, 0);
         this.mesh.position.set(this.x.x, this.x.y, this.x.z);
         this.mesh.quaternion.copy(this.q);
         this.mesh.scale.set(this.dimensions.x, this.dimensions.y, this.dimensions.z);
@@ -214,8 +259,10 @@ class Particle {
     }
 
     growApicalChild(particles: Particle[]) : void {
+        if (this.hasApicalChild) return;
+        if (this.dimensions.z < MAX_HEIGHT) return;
         let child = new Particle(
-            this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y)),
+            this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y/2)),
             this.q.clone(),
             this.material,
             this.scene,
@@ -224,6 +271,7 @@ class Particle {
         child.parent = this;
         this.childs.push(child);
         particles.push(child);
+        this.hasApicalChild = true;
     }
 
     updateMesh(): void {
@@ -232,33 +280,188 @@ class Particle {
         const targetPosition = this.x.clone().add(direction); // A point in the direction of `getDir`
         this.mesh.lookAt(targetPosition);
         this.mesh.updateMatrixWorld();
+        this.mesh.scale.set(this.dimensions.x, this.dimensions.y, this.dimensions.z);
+    }
+
+    eulerIntegration(dt: number, gravity: THREE.Vector3, externalForces: THREE.Vector3) : void {
+        this.x_pred = this.x.clone()
+        .add(this.v.clone().addScalar(dt))
+        .add(gravity.clone().add(externalForces).multiplyScalar(dt*dt/2));
+
+        const ang_vel_length = this.w.length();
+        if (ang_vel_length < EPSILON) {
+            this.q_pred = this.q.clone();
+            return;
+        }
+        const axis = this.w.clone().normalize()
+            .multiplyScalar(Math.sin(ang_vel_length * dt / 2));
+        const angle = Math.cos(ang_vel_length * dt / 2);
+        this.q_pred = new THREE.Quaternion(
+            axis.x,
+            axis.y,
+            axis.z,
+            angle
+        ).multiply(this.q);
+    }
+
+    getGroup() : Particle[] {
+        let particles : Particle[] = [this];
+        if (this.parent) {
+            particles.push(this.parent);
+        }
+        for (let i = 0; i < this.childs.length; i++) {
+            particles.push(this.childs[i]);
+        }
+        return particles;
+    }
+
+    updateParticleGroupsCentersOfMass() {
+        let mass_sum = 0;
+
+        let group = this.getGroup();
+        for (let i = 0; i < group.length; i++) {
+            this.c.add(group[i].x.multiplyScalar(group[i].mass));
+            this.c_rest.add(group[i].x_rest.multiplyScalar(group[i].mass));
+            mass_sum += group[i].mass;
+        }
+
+        this.c.multiplyScalar(1/mass_sum);
+        this.c_rest.multiplyScalar(1/mass_sum);
+    }
+
+    updateLeastSquareOptimalMatrix() {
+        let A : THREE.Matrix3 = new THREE.Matrix3()
+        .set(
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0
+        );
+
+        let group = this.getGroup();
+
+        for (let i = 0; i < group.length; i++) {
+            let particle = group[i];
+
+            let X = new THREE.Matrix3()
+            .set(
+                particle.x.x * particle.x_rest.x, particle.x.x * particle.x_rest.y, particle.x.x * particle.x_rest.z,
+                particle.x.y * particle.x_rest.x, particle.x.y * particle.x_rest.y, particle.x.y * particle.x_rest.z,
+                particle.x.z * particle.x_rest.x, particle.x.z * particle.x_rest.y, particle.x.z * particle.x_rest.z
+            )
+            .multiplyScalar(particle.mass);
+
+            let C = new THREE.Matrix3()
+            .set(
+                particle.c.x * particle.c_rest.x, particle.c.x * particle.c_rest.y, particle.c.x * particle.c_rest.z,
+                particle.c.y * particle.c_rest.x, particle.c.y * particle.c_rest.y, particle.c.y * particle.c_rest.z,
+                particle.c.z * particle.c_rest.x, particle.c.z * particle.c_rest.y, particle.c.z * particle.c_rest.z
+            )
+            .multiplyScalar(particle.mass);
+
+            A = mat3Add(A, mat3Add(X, C));
+        }
+
+        let {u, q, v} = SVD(matrix3To2DArray(A));
+
+        let U = new THREE.Matrix3().set(
+            u[0][0], u[0][1], u[0][2],
+            u[1][0], u[1][1], u[1][2],
+            u[2][0], u[2][1], u[2][2]
+        );
+
+        let Vt = new THREE.Matrix3().set(
+            v[0][0], v[1][0], v[2][0],
+            v[0][1], v[1][1], v[2][1],
+            v[0][2], v[1][2], v[2][2]
+        );
+        this.Rg = U.multiply(Vt);
+    }
+
+    updateTargetPosition() {
+        this.x_target = this.x_rest.clone().sub(this.c_rest).applyMatrix3(this.Rg).add(this.c);
+    }
+
+    updateGoalPosition() {
+        this.x_goal = new THREE.Vector3(0, 0, 0);
+
+        let weightsum = 0;
+        let group = this.getGroup();
+
+        for (let i = 0; i < group.length; i++) {
+            let particle = group[i];
+            this.x_goal.add(particle.x_target.multiplyScalar(particle.weight));
+            weightsum += particle.weight;
+        }
+
+        this.x_goal.multiplyScalar(1/weightsum);
+    }
+
+    integrationScheme(dt: number) {
+        this.v = this.x_goal.clone().sub(this.x).multiplyScalar(dt);
+
+        this.x = this.x_goal.clone();
+
+        const qpq = this.q_pred.clone().multiply(this.q.invert());
+        const angle = Math.acos(qpq.w);
+        if (angle > EPSILON) {
+            const axis = new THREE.Vector3(qpq.x, qpq.y, qpq.z).normalize();
+            this.w = axis.multiplyScalar(angle / dt);
+        } else {
+            this.w = new THREE.Vector3(0, 0, 0);
+        }
+    }
+}
+
+function applyToAllParticles(particleGroup: Particle[], func: (particle: Particle) => void) {
+    for (let i = 0; i < particleGroup.length; i++) {
+        func(particleGroup[i]);
     }
 }
 
 function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3,
     light: any, scene: THREE.Scene, octree:any, eta: number, rootIndex : number=0) : void {
-    let testing = true;
+    let testing = false;
     // Testing
     if (testing) {
-        for (let i = 0; i < particleGroup.length; i++) {
-            let particle = particleGroup[i];
-            particle.updateMesh();
-        }
+
         return;
     }
-
     
     // Self growth
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.selfGrowth(delta_time);
+    });
+
+    // Anchor update
+
 
     // Euler integration
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.eulerIntegration(delta_time, gravity, externalForce);
+    });
 
-    // Update particles groups
+    // Update particles groups centers of mass
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateParticleGroupsCentersOfMass();
+    });
 
     // Compute least square optimal matrices for each group
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateLeastSquareOptimalMatrix();
+    });
 
     // Compute particle's target position
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateTargetPosition();
+    });
 
     // Compute particle's goal position (and update weight if needed)
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateWeight();
+    });
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateGoalPosition();
+    });
 
     // Correct particle's predicted position with the goal position
 
@@ -267,6 +470,9 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     // Correct x towards the nearest anchor
 
     // Grow branches and childs
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.growApicalChild(particleGroup);
+    });
 
     // Surface adaptation
 
@@ -274,6 +480,10 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
 
     // Growth integration
 
+    // Mesh updates
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateMesh();
+    });
 
 }
 

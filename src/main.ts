@@ -135,8 +135,8 @@ async function initialize() {
             loaderElement.style.display = 'none';
         }
 
-        particles = particleRope(scene, 3);
-        horizontalParticles = horizontalParticleRope(scene, 3);
+        particles = particleRope(scene, 0);
+        horizontalParticles = horizontalParticleRope(scene, 0);
 
         console.log("Particle 0 ellipsoidBody init : ");
         console.log(particles[0]);
