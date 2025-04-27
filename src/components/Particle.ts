@@ -442,6 +442,17 @@ class Particle {
     integrationScheme(dt: number) {
         if(this.isSeed) return;
 
+        // n terms of orientation, we only update the orientation of the center particle by replacing it with the optimal rotation provided by shapematching.
+        // "Solid Simulation with Oriented Particles" 5.1
+        this.q_pred = new THREE.Quaternion(0, 0, 0, 1).setFromRotationMatrix(
+            new THREE.Matrix4().set(
+                this.Rg.elements[0], this.Rg.elements[3], this.Rg.elements[6], 0,
+                this.Rg.elements[1], this.Rg.elements[4], this.Rg.elements[7], 0,
+                this.Rg.elements[2], this.Rg.elements[5], this.Rg.elements[8], 0,
+                0, 0, 0, 1
+            )
+        );
+
         // Linear velocity
         this.v = this.x_goal.clone().sub(this.x).multiplyScalar(dt);
 
