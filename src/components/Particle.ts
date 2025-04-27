@@ -21,8 +21,8 @@ export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
 export const MAX_WIDTH : number = 0.5;
 export const MAX_HEIGHT : number = 1.0;
 
-export const WIDTH_GROWTH_RATE : number = 0.1;
-export const HEIGHT_GROWTH_RATE : number = 0.3;
+export const WIDTH_GROWTH_RATE : number = 0.2;
+export const HEIGHT_GROWTH_RATE : number = 0.6;
 
 export const DEFAULT_DIMENSIONS : THREE.Vector3 = new THREE.Vector3(
     SMALLEST_PARTICLE_FACTOR * MAX_WIDTH,
@@ -42,6 +42,8 @@ export const BRANCHING_PROBABILITY : number = 0.0;
 export const BRANCHING_ANGLE_VARIANCE : number = Math.PI/3;
 
 export const WIREFRAME : boolean = true;
+
+export const STIFFNESS : number = 0.2;
 
 const PI : number = Math.PI;
 const EPSILON : number = 0.0001;
@@ -85,12 +87,28 @@ function getRot(axis: THREE.Vector3, angle: number): THREE.Matrix3 {
     );
 }
 
+function polarDecomposition(A: THREE.Matrix3) : THREE.Matrix3 {
+    const {u, q, v} = SVD(matrix3To2DArray(A));
+    const U = new THREE.Matrix3().set(
+        u[0][0], u[0][1], u[0][2],
+        u[1][0], u[1][1], u[1][2],
+        u[2][0], u[2][1], u[2][2]
+    );
+    const Vt = new THREE.Matrix3().set(
+        v[0][0], v[1][0], v[2][0],
+        v[0][1], v[1][1], v[2][1],
+        v[0][2], v[1][2], v[2][2]
+    );
+    return U.multiply(Vt);
+}
+
 class Particle {
     widthLOD : number = 8;
     heightLOD : number = 4;
     scene : THREE.Scene; // Scene of the ellipsoid
     mesh : THREE.Mesh; // Mesh of the ellipsoid
     material : THREE.MeshStandardMaterial; // Material of the ellipsoid
+    pointAtXRest : THREE.Points; // Point at rest position
 
     x: THREE.Vector3; // Position
     x_prev: THREE.Vector3 | null; // Previous Position
@@ -109,6 +127,8 @@ class Particle {
     R_rest: THREE.Matrix3; // Rest Rotation Matrix
 
     w: THREE.Vector3; // Angular Velocity
+
+    x_anchor: THREE.Vector3; // Anchor position
 
     c: THREE.Vector3; // Center of mass of the group
     c_rest: THREE.Vector3; // Rest Center of mass of the group
@@ -175,14 +195,16 @@ class Particle {
         this.depth = depth;
         this.isSeed = isSeed;
 
-        let pointAtXRest = coordonneToObject({x:this.x_rest.x, y:this.x_rest.y, z:this.x_rest.z});
+        this.pointAtXRest = coordonneToObject({x:this.x_rest.x, y:this.x_rest.y, z:this.x_rest.z});
 
-        pointAtXRest.material = this.material;
-        pointAtXRest.scale.set(5, 5, 5);
-        this.scene.add(pointAtXRest);
+        this.pointAtXRest.material = this.material;
+        this.pointAtXRest.scale.set(5, 5, 5);
+        this.scene.add(this.pointAtXRest);
+
+        this.x_anchor = this.x.clone();
     }
 
-    selfGrowth(dt: number) {
+    selfGrowth(dt: number, octree: Octree) {
         if (this.dimensions.x < MAX_WIDTH) {
             this.dimensions.x += DELTA_WIDTH * dt;
             this.dimensions.y += DELTA_WIDTH * dt;
@@ -192,15 +214,20 @@ class Particle {
         }
         this.updateMass();
         this.updateMomentMatrix();
+        this.updateAnchor(octree);
+    }
+
+    updateAnchor(octree: Octree) {
+        this.x_anchor = this.closestAnchor(this.x, octree);
     }
 
     rotate(angle: number, axis: THREE.Vector3) {
-        this.q.multiply(new THREE.Quaternion().setFromAxisAngle(axis, angle));
-        this.R = mat3FromQuaternion(this.q);
-        for (let i = 0; i < this.childs.length; i++) {
-            this.childs[i].rotate(angle, axis);
-        }
+        // Update the particle's quaternion
+        const rotation = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+        this.q.premultiply(rotation);
     }
+    
+
 
     updateMass() {
         this.mass = this.rho * 4*Math.PI/3 * this.dimensions.x * this.dimensions.y * this.dimensions.z;
@@ -295,6 +322,12 @@ class Particle {
     }
 
     eulerIntegration(dt: number, gravity: THREE.Vector3, externalForces: THREE.Vector3) : void {
+        this.x_goal = new THREE.Vector3(0, 0, 0);
+        if (this.isSeed) {
+            this.x_pred = this.x.clone();
+            this.q_pred = this.q.clone();
+            return;
+        }
         this.x_pred = this.x.clone()
         .add(this.v.clone().addScalar(dt))
         .add(gravity.clone().add(externalForces).multiplyScalar(dt*dt/2));
@@ -334,13 +367,15 @@ class Particle {
         let group = this.getGroup();
         let i = 0;
         for (i = 0; i < group.length; i++) {
-            this.c.add(group[i].x.clone().multiplyScalar(group[i].mass));
+            this.c.add(group[i].x_pred.clone().multiplyScalar(group[i].mass));
             this.c_rest.add(group[i].x_rest.clone().multiplyScalar(group[i].mass));
             mass_sum += group[i].mass;
         }
         this.c.multiplyScalar(1/mass_sum);
         this.c_rest.multiplyScalar(1/mass_sum);
     }
+
+
 
     updateLeastSquareOptimalMatrix() {
         let A : THREE.Matrix3 = new THREE.Matrix3()
@@ -351,10 +386,11 @@ class Particle {
         );
 
         let group = this.getGroup();
-
+        let c = group[0].c.clone();
+        let c_rest = group[0].c_rest.clone();
+        let M = 0;
         for (let i = 0; i < group.length; i++) {
             let particle = group[i];
-
             let X = new THREE.Matrix3()
             .set(
                 particle.x.x * particle.x_rest.x, particle.x.x * particle.x_rest.y, particle.x.x * particle.x_rest.z,
@@ -362,32 +398,19 @@ class Particle {
                 particle.x.z * particle.x_rest.x, particle.x.z * particle.x_rest.y, particle.x.z * particle.x_rest.z
             )
             .multiplyScalar(particle.mass);
-
-            let C = new THREE.Matrix3()
-            .set(
-                particle.c.x * particle.c_rest.x, particle.c.x * particle.c_rest.y, particle.c.x * particle.c_rest.z,
-                particle.c.y * particle.c_rest.x, particle.c.y * particle.c_rest.y, particle.c.y * particle.c_rest.z,
-                particle.c.z * particle.c_rest.x, particle.c.z * particle.c_rest.y, particle.c.z * particle.c_rest.z
-            )
-            .multiplyScalar(particle.mass);
-
-            A = mat3Add(A, mat3Add(X, C));
+            M += particle.mass;
+            A = mat3Add(A, X);
         }
+        let C = new THREE.Matrix3()
+        .set(
+            c.x * c_rest.x, c.x * c_rest.y, c.x * c_rest.z,
+            c.y * c_rest.x, c.y * c_rest.y, c.y * c_rest.z,
+            c.z * c_rest.x, c.z * c_rest.y, c.z * c_rest.z
+        )
+        .multiplyScalar(M); // should be -M ? but it crashes
+        A = mat3Add(A, C);
 
-        let {u, q, v} = SVD(matrix3To2DArray(A));
-
-        let U = new THREE.Matrix3().set(
-            u[0][0], u[0][1], u[0][2],
-            u[1][0], u[1][1], u[1][2],
-            u[2][0], u[2][1], u[2][2]
-        );
-
-        let Vt = new THREE.Matrix3().set(
-            v[0][0], v[1][0], v[2][0],
-            v[0][1], v[1][1], v[2][1],
-            v[0][2], v[1][2], v[2][2]
-        );
-        this.Rg = U.multiply(Vt);
+        this.Rg = polarDecomposition(A);
     }
 
     updateTargetPosition() {
@@ -407,6 +430,10 @@ class Particle {
         }
 
         this.x_goal.multiplyScalar(1/weightsum);
+    }
+
+    applyStiffness() {
+        this.x_goal = this.x_pred.clone().add(this.x_goal.clone().sub(this.x_pred).multiplyScalar(STIFFNESS));
     }
 
     integrationScheme(dt: number) {
@@ -443,6 +470,7 @@ function applyToAllParticles(particleGroup: Particle[], func: (particle: Particl
     }
 }
 
+
 function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3,
     light: any, scene: THREE.Scene, octree:any, eta: number, rootIndex : number=0) : void {
     let testing = false;
@@ -454,11 +482,13 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     
     // Self growth
     applyToAllParticles(particleGroup, (particle) => {
-        particle.selfGrowth(delta_time);
+        particle.selfGrowth(delta_time, octree);
     });
 
     // Anchor update
-
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.updateAnchor(octree);
+    });
 
     // Euler integration
     applyToAllParticles(particleGroup, (particle) => {
@@ -489,6 +519,9 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     });
 
     // Correct particle's predicted position with the goal position
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.applyStiffness();
+    });
 
     // Integration Scheme
     applyToAllParticles(particleGroup, (particle) => {
@@ -497,16 +530,17 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
 
     // Correct x towards the nearest anchor
 
-    // Grow branches and childs
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.growApicalChild(particleGroup);
-    });
-
     // Surface adaptation
 
     // Phototropism
 
     // Growth integration
+
+    // Grow branches and childs
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.growApicalChild(particleGroup);
+    });
+
 
     // Mesh updates
     applyToAllParticles(particleGroup, (particle) => {
