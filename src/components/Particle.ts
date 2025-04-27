@@ -50,9 +50,12 @@ const EPSILON : number = 0.0001;
 
 function mat3Add(a: THREE.Matrix3, b: THREE.Matrix3): THREE.Matrix3 {
     return new THREE.Matrix3().set(
-        a.elements[0] + b.elements[0], a.elements[1] + b.elements[1], a.elements[2] + b.elements[2],
-        a.elements[3] + b.elements[3], a.elements[4] + b.elements[4], a.elements[5] + b.elements[5],
-        a.elements[6] + b.elements[6], a.elements[7] + b.elements[7], a.elements[8] + b.elements[8]
+        // THREE.Matrix3 is stored in column-major order
+        // But Matrix3.set takes values in row-major order
+        // https://threejs.org/docs/?q=matrix#api/en/math/Matrix3
+        a.elements[0] + b.elements[0], a.elements[3] + b.elements[3], a.elements[6] + b.elements[6],
+        a.elements[1] + b.elements[1], a.elements[4] + b.elements[4], a.elements[7] + b.elements[7],
+        a.elements[2] + b.elements[2], a.elements[5] + b.elements[5], a.elements[8] + b.elements[8]
     )
 }
 
