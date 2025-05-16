@@ -488,10 +488,14 @@ class Particle {
         return new THREE.Euler().setFromQuaternion(quaternion);
     }
 
+    getVs() : THREE.Vector3 {
+        return this.x.clone().sub(this.x_anchor).normalize();
+    }
+
     plantOrientation(dt: number, light: any) {
         if (this.hasApicalChild) return;
         // Surface adaptation
-        let v_s = this.x.clone().sub(this.x_anchor).normalize();
+        let v_s = this.getVs();
         let v_f = this.getDir().normalize();
         let a_a = v_s.clone().cross(v_f).normalize(); // norm ??
         let alpha_a = v_s.clone().dot(v_f) * SURFACE_ADAPTATION_STRENGTH * dt;

@@ -49,8 +49,7 @@ const renderer: THREE.WebGLRenderer = createRenderer();
 const monitor: Monitor = new Monitor();
 const lightsManager: LightManager = new LightManager(scene);
 
-let particles : Particle [] = [];
-let horizontalParticles : Particle [] = [];
+let particles : Particle [][] = [];
 
 const FPS : number = 30;
 const FRAME_DELAY : number = 1000 / FPS;
@@ -135,8 +134,8 @@ async function initialize() {
             loaderElement.style.display = 'none';
         }
 
-        particles = particleRope(scene, 0);
-        horizontalParticles = horizontalParticleRope(scene, 0);
+        let horizontalParticles = horizontalParticleRope(scene, 0);
+        particles.push(horizontalParticles);
 
         console.log("Particle 0 ellipsoidBody init : ");
         console.log(particles[0]);
@@ -162,15 +161,22 @@ button.style.top = '70px';
 button.style.left = '70px';
 document.body.appendChild(button);
 button.onclick = function () {
-    // for (const particule of particles) {
-    //     particule.surfaceAdaptation(octree, 1/FPS); 
-    //     let simpleVector = displayVectorVf(particule);
-    //     let simpleVector2 = displayVectorVs(particule);
-    //     if (simpleVector2) {
-    //         scene.add(simpleVector2);
-    //     }
-    //     //scene.add(simpleVector);
-    // }
+    for (const particule of particles[0]) {
+        let v_s = particule.getVs();
+        console.log("v_s : " + v_s.x + " " + v_s.y + " " + v_s.z);
+        console.log(particule.x_anchor);
+        console.log(particule.x);
+        // display the v_s vec3 in the scene
+        const direction = v_s.clone().normalize();
+        const origin = particule.x.clone().add(v_s.clone().multiplyScalar(particule.dimensions.y/2));
+        const length = 5; // Adjust the length as needed
+        const color = particule.material.color.getHex(); // Red color for the arrow
+        const arrowHelper = new THREE.ArrowHelper(direction, origin, length,color)
+        if (arrowHelper) {
+            scene.add(arrowHelper);
+        }
+        //scene.add(simpleVector);
+    }
 }
 
 // GUI controls
@@ -251,12 +257,13 @@ function animate(currentTime : number = 0) {
         //world.step(fixed_delta_t);
             // Update particules based on physics calculations
         //updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
-        updateParticleGroup(fixed_delta_t, horizontalParticles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
-
-        console.log("Particles :");
-        horizontalParticles.forEach((particle, index) => {
-            console.log(`Particle ${index}:`, particle);
-        });
+        for (let particlesGroup of particles) { 
+            updateParticleGroup(fixed_delta_t, particlesGroup , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
+        }
+        // console.log("Particles :");
+        // horizontalParticles.forEach((particle, index) => {
+        //     console.log(`Particle ${index}:`, particle);
+        // });
 
         monitor.end();
         renderer.render(scene, camera);
