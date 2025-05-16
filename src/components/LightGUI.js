@@ -3,16 +3,31 @@ import DimensionGUIHelper from '../utils/DimensionGUIHelper.js';
 import MinMaxGUIHelper from '../utils/MinMaxGUIHelper.js';
 import { OCTREE_VISIBLE } from '../utils/OctreeHelper.js';
 import { controlsParams } from '../utils/Controls';
-
+import { ParticleParameters } from './Particle';
 export function setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree) {
     const gui = new GUI({ container: document.getElementById('gui-container') });
 
-    const plantFolder = gui.addFolder('Plant Parameters');
+    const plantSeedFolder = gui.addFolder('Plant seed enable');
     // plantSeedEnabled is a bool
-    plantFolder.add(controlsParams, "plantSeedMode").name("plantSeedEnabled").onChange(function(value) {
+    plantSeedFolder.add(controlsParams, "plantSeedMode").name("plantSeedEnabled").onChange(function(value) {
         // Explicitly set the value and log to verify
         controlsParams.plantSeedMode = value;
         console.log("Plant Seed Mode updated:", controlsParams.plantSeedMode);
+    });
+    plantSeedFolder.open();
+
+    const plantFolder = gui.addFolder('Plant growth Parameters');
+    plantFolder.add(ParticleParameters, 'growthRate', 0, 5).name('Growth Rate').onChange(function(value) {
+        ParticleParameters.growthRate = value;
+    });
+    plantFolder.add(ParticleParameters, 'allowLateralBranching').name('Allow Lateral Branching').onChange(function(value) {
+        ParticleParameters.allowLateralBranching = value;
+    });
+    plantFolder.add(ParticleParameters, 'lateralBranchProbability',0,1).name('Lateral Branch Probability').onChange(function(value) {
+        ParticleParameters.lateralBranchProbability = value;
+    });
+    plantFolder.add(ParticleParameters, 'lateralBranchCooldown', 500, 10000).name('Lateral Branch Cooldown (ms)').onChange(function(value) {
+        ParticleParameters.lateralBranchCooldown = value;
     });
     plantFolder.open();
 

@@ -22,8 +22,8 @@ export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
 export const MAX_WIDTH : number = 0.5;
 export const MAX_HEIGHT : number = 1.0;
 
-export const WIDTH_GROWTH_RATE : number = 0.4; // 0.2
-export const HEIGHT_GROWTH_RATE : number = 1.2; // 0.6
+export const WIDTH_GROWTH_RATE : number = 0.5; // 0.2
+export const HEIGHT_GROWTH_RATE : number = 1.8; // 0.6
 
 export const DEFAULT_DIMENSIONS : THREE.Vector3 = new THREE.Vector3(
     SMALLEST_PARTICLE_FACTOR * MAX_WIDTH,
@@ -51,12 +51,22 @@ export const GROWTH_VARIANCE_MAX : number = 0.3; // Maximum angle deviation (as 
 export const DIRECTION_SMOOTHING : number = 0.9; // How much to smooth direction changes (0-1)
 export const NORMAL_SMOOTHING_RADIUS : number = 2.0; // Radius to collect and average normals
 
-export const BRANCHING_PROBABILITY : number = 0.0;
-export const BRANCHING_ANGLE_VARIANCE : number = Math.PI/3;
+// Branching settings
+export const BRANCH_SELECTION_FACTOR : number = 0.15; // Probability increase factor when selecting a particle
+export const MIN_BRANCH_ANGLE : number = Math.PI / 3; // 60 degrees off the main stem
+export const MAX_BRANCH_ANGLE : number = Math.PI * 2 / 3; // 120 degrees off the main stem
+export const BRANCH_GROWTH_FACTOR : number = 0.75; // Size factor for branches compared to main stem
 
 export const WIREFRAME : boolean = true;
 
 export const STIFFNESS : number = 0.2;
+
+export const ParticleParameters = {
+    allowLateralBranching: false,
+    lateralBranchProbability: 0.04,
+    lateralBranchCooldown: 1500,
+    growthRate: 1.0,
+}
 
 class Particle {
     widthLOD : number = 8;
@@ -108,6 +118,9 @@ class Particle {
 
     hasApicalChild: boolean = false; // True if the ellipsoid has an apical child
     isSeed: boolean = false; // True if the ellipsoid is the seed of the plant
+    isLateralBranch: boolean = false; // True if this particle is part of a lateral branch
+    branchCount: number = 0; // Number of branches grown from this particle
+    lastBranchTime: number = 0; // Time when the last branch was grown
 
     // Track if we're currently correcting for penetration
     isPenetrating: boolean = false;
@@ -129,7 +142,7 @@ class Particle {
      * @param {THREE.Scene} world Physics engine world
      * @param {boolean} isSeed true if this particle is the seed of the plant, false otherwise
      */
-    constructor(position: THREE.Vector3, rotation: THREE.Quaternion, material: THREE.MeshStandardMaterial, scene: THREE.Scene, depth=0, isSeed=false) {
+    constructor(position: THREE.Vector3, rotation: THREE.Quaternion, material: THREE.MeshStandardMaterial, scene: THREE.Scene, depth=0, isSeed=false, isLateralBranch=false) {
         this.x = position.clone();
         this.x_prev = null;
         this.x_rest = position.clone();
@@ -163,6 +176,7 @@ class Particle {
 
         this.depth = depth;
         this.isSeed = isSeed;
+        this.isLateralBranch = isLateralBranch;
 
         this.pointAtXRest = coordonneToObject({x:this.x_rest.x, y:this.x_rest.y, z:this.x_rest.z});
 
@@ -216,20 +230,36 @@ class Particle {
         return direction.clone().applyQuaternion(rotation).normalize();
     }
 
+    /**
+     * Check if the particle is fully grown
+     * @returns true if the particle is fully grown
+     */
+    isFullyGrown(): boolean {
+        return this.dimensions.x >= MAX_WIDTH && 
+               this.dimensions.y >= MAX_WIDTH && 
+               this.dimensions.z >= MAX_HEIGHT;
+    }
+
     stillGrowing() : boolean {
         // Check if the particle is still growing
-        return this.dimensions.y < MAX_WIDTH || this.dimensions.z < MAX_HEIGHT;
+        return !this.isFullyGrown();
     }
 
     selfGrowth(dt: number, octree: Octree) {
         if (!this.stillGrowing()) return;
         if (this.dimensions.x < MAX_WIDTH) {
-            this.dimensions.x += DELTA_WIDTH * dt;
-            this.dimensions.y += DELTA_WIDTH * dt;
+            this.dimensions.x += DELTA_WIDTH * dt * ParticleParameters.growthRate;
+            this.dimensions.y += DELTA_WIDTH * dt * ParticleParameters.growthRate;
         }
         if (this.dimensions.z < MAX_HEIGHT) {
-            this.dimensions.z += DELTA_HEIGHT * dt;
+            this.dimensions.z += DELTA_HEIGHT * dt * ParticleParameters.growthRate;
         }
+        
+        // Clamp dimensions to max values
+        this.dimensions.x = Math.min(this.dimensions.x, MAX_WIDTH);
+        this.dimensions.y = Math.min(this.dimensions.y, MAX_WIDTH);
+        this.dimensions.z = Math.min(this.dimensions.z, MAX_HEIGHT);
+        
         this.updateMass();
         this.updateMomentMatrix();
         this.updateAnchor(octree);
@@ -342,6 +372,10 @@ class Particle {
         return new THREE.Vector3(0, 1, 0).applyQuaternion(this.q).normalize();
     }
 
+    getSide() : THREE.Vector3 {
+        return new THREE.Vector3(1, 0, 0).applyQuaternion(this.q).normalize();
+    }
+
     getHead() : THREE.Vector3 {
         return this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y));
     }
@@ -435,20 +469,99 @@ class Particle {
         }
     }
 
-    isStillGrowing() : boolean {
-        return this.dimensions.x < MAX_WIDTH || this.dimensions.y < MAX_HEIGHT;
+    /**
+     * Create a lateral branch on this particle
+     * @param particles Array of all particles
+     * @returns Boolean indicating if branch was successfully created
+     */
+    growLateralBranch(particles: Particle[]): boolean {
+        // Don't grow branches from seeds or from particles that aren't fully grown
+        if (this.isSeed || !this.isFullyGrown()) {
+            return false;
+        }
+        
+        // Check if enough time has passed since last branch
+        const currentTime = performance.now();
+        if (currentTime - this.lastBranchTime < ParticleParameters.lateralBranchCooldown) {
+            return false;
+        }
+        
+        // Generate a random angle for the branch
+        const branchAngle = MIN_BRANCH_ANGLE + Math.random() * (MAX_BRANCH_ANGLE - MIN_BRANCH_ANGLE);
+        
+        // Randomly choose position around the stem
+        const rotationAngle = Math.random() * 2 * Math.PI;
+        
+        // Get the main stem direction
+        const mainDir = this.getDir();
+        
+        // Create a rotation axis perpendicular to growth direction
+        const rotationAxis = MathsUtils.randomPerpendicular(mainDir);
+        
+        // Rotate around the main stem
+        const aroundStemRotation = new THREE.Quaternion().setFromAxisAngle(mainDir, rotationAngle);
+        rotationAxis.applyQuaternion(aroundStemRotation);
+        
+        // Create quaternion for the branch direction
+        const branchRotation = new THREE.Quaternion().setFromAxisAngle(rotationAxis, branchAngle);
+        const branchQuaternion = this.q.clone().premultiply(branchRotation);
+        
+        // Set branch position at the side of the parent particle
+        const sideOffset = new THREE.Vector3(0, 0, 0)
+            .applyQuaternion(branchQuaternion)
+            .normalize()
+            .multiplyScalar(this.dimensions.x * 0.8);
+        
+        const branchPosition = this.x.clone().add(sideOffset);
+        
+        // Create different color for branch
+        const branchMaterial = this.material.clone();
+        branchMaterial.color.set(this.isLateralBranch ? this.material.color : this.material.color.clone().multiplyScalar(0.75));
+        
+        // Create the branch particle
+        const branch = new Particle(
+            branchPosition,
+            branchQuaternion,
+            branchMaterial,
+            this.scene,
+            this.depth + 1,
+            false,
+            true // This is a lateral branch
+        );
+        
+        // Scale down branch dimensions
+        branch.dimensions.multiplyScalar(BRANCH_GROWTH_FACTOR);
+        
+        // Set up parent-child relationship
+        branch.parent = this;
+        this.childs.push(branch);
+        particles.push(branch);
+        
+        // Update counters
+        this.branchCount++;
+        this.lastBranchTime = currentTime;
+        
+        // Ensure proper initialization
+        this.updateParticleGroupsCentersOfMass();
+        branch.updateParticleGroupsCentersOfMass();
+        
+        return true;
     }
 
     growApicalChild(particles: Particle[]) : void {
         if (this.hasApicalChild) return;
         if (this.dimensions.z < MAX_HEIGHT) return;
+        
         let child = new Particle(
             this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y/2)),
             this.q.clone(),
             this.material.clone(),
             this.scene,
-            this.depth + 1
+            this.depth + 1,
+            false,
+            this.isLateralBranch // Inherit lateral branch status
         );
+        
         child.x_rest.copy(this.x_rest).add(this.getDir().clone().multiplyScalar(this.dimensions.y/2));
         child.parent = this;
         this.childs.push(child);
@@ -787,12 +900,61 @@ class Particle {
     }
 }
 
+function tryGrowBranch(particleGroup: Particle[], dt: number): boolean {
+    // Check if we should attempt to grow a branch this frame
+    if (Math.random() > ParticleParameters.lateralBranchProbability * dt) {
+        return false;
+    }
+    
+    const numParticles = particleGroup.length;
+    if (numParticles === 0) return false;
+    
+    // Find the maximum weight to normalize probabilities
+    let maxWeight = 0;
+    for (let i = 0; i < numParticles; i++) {
+        if (particleGroup[i].weight > maxWeight) {
+            maxWeight = particleGroup[i].weight;
+        }
+    }
+    
+    if (maxWeight <= 0) return false;
+    
+    // Pick a random starting point in the list
+    const startIndex = Math.floor(Math.random() * numParticles);
+    
+    // Check each particle once, starting from the random position
+    for (let offset = 0; offset < numParticles; offset++) {
+        // Calculate the actual index with wrap-around
+        const index = (startIndex + offset) % numParticles;
+        const particle = particleGroup[index];
+        
+        // Skip ineligible particles
+        if (!particle.isFullyGrown() || 
+            particle.isSeed || 
+            performance.now() - particle.lastBranchTime < ParticleParameters.lateralBranchCooldown) {
+            continue;
+        }
+        
+        // Calculate probability based on weight and branch count
+        const normalizedWeight = particle.weight / maxWeight;
+        const branchFactor = Math.pow(0.7, particle.branchCount);
+        const probability = normalizedWeight * branchFactor * BRANCH_SELECTION_FACTOR;
+        
+        // Check if this particle gets a branch
+        if (Math.random() < probability) {
+            // Found a particle - grow branch and exit loop
+            return particle.growLateralBranch(particleGroup);
+        }
+    }
+    
+    return false;
+}
+
 function applyToAllParticles(particleGroup: Particle[], func: (particle: Particle) => void) {
     for (let i = 0; i < particleGroup.length; i++) {
         func(particleGroup[i]);
     }
 }
-
 
 function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3,
     light: any, scene: THREE.Scene, octree:any, eta: number, rootIndex : number=0) : void {
@@ -811,8 +973,11 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     applyToAllParticles(particleGroup, (particle) => {
         particle.plantOrientation(delta_time, light, octree);
     });
+    
+    // Try to grow a branch for the entire group
+    if (ParticleParameters.allowLateralBranching) tryGrowBranch(particleGroup, delta_time);
 
-    // Grow branches and childs
+    // Grow apical children
     applyToAllParticles(particleGroup, (particle) => {
         particle.growApicalChild(particleGroup);
     });
