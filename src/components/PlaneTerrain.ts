@@ -4,18 +4,18 @@ import * as CANNON from 'cannon-es';
 
 
 class PlaneTerrain {
-    world;
-    physicsBody;
-    mesh;
+    world : CANNON.World;
+    physicsBody : CANNON.Body;
+    mesh : THREE.Mesh;
 
     /**
      * 
      * @param {CANNON.World} world  Physics engine world
      * @param {float} width size of the square plane
      * @param {float} height Y position of the plane
-     * @param {THREE.MeshPhongMaterial} material Phong material of the ellipsoid (contains the color !)
+     * @param {THREE.MeshStandardMaterial} material Phong material of the ellipsoid (contains the color !)
      */
-    constructor(world, width, height, material) {
+    constructor(world: CANNON.World, width: number, height: number, material: THREE.MeshStandardMaterial) {
         this.world = world;
         this.physicsBody = new CANNON.Body({
             mass: 0,
@@ -37,7 +37,7 @@ class PlaneTerrain {
         this.mesh.name = "ground";
     }
 
-    addToScene(scene) {
+    addToScene(scene: THREE.Scene) {
         scene.add(this.mesh);
     }
 }

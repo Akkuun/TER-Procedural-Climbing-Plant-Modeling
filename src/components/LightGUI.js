@@ -2,9 +2,19 @@ import GUI from 'lil-gui';
 import DimensionGUIHelper from '../utils/DimensionGUIHelper.js';
 import MinMaxGUIHelper from '../utils/MinMaxGUIHelper.js';
 import { OCTREE_VISIBLE } from '../utils/OctreeHelper.js';
+import { controlsParams } from '../utils/Controls';
 
 export function setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree) {
     const gui = new GUI({ container: document.getElementById('gui-container') });
+
+    const plantFolder = gui.addFolder('Plant Parameters');
+    // plantSeedEnabled is a bool
+    plantFolder.add(controlsParams, "plantSeedMode").name("plantSeedEnabled").onChange(function(value) {
+        // Explicitly set the value and log to verify
+        controlsParams.plantSeedMode = value;
+        console.log("Plant Seed Mode updated:", controlsParams.plantSeedMode);
+    });
+    plantFolder.open();
 
     const lightFolder = gui.addFolder('Light Position');
     lightFolder.add(lightParams, 'lx', -50, 50).onChange(updateLight);
