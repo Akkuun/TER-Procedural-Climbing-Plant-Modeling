@@ -6,8 +6,6 @@ import { updateControls, setupCameraControls, setupMouseInteraction } from './ut
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import {particleRope} from './components/Particle';
-import { horizontalParticleRope } from './components/Particle';
 import {Particle} from './components/Particle';
 import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
@@ -126,7 +124,7 @@ async function initialize() {
         // Load all models
         await Promise.all([
             loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 10, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, 4.5, 0), 10, octree, helpers)
+            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 10, octree, helpers)
         ]);
 
         console.log('All models loaded.');
