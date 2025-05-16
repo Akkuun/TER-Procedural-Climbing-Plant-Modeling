@@ -37,8 +37,13 @@ export const VEC_UP : THREE.Vector3 = new THREE.Vector3(0, 1, 0);
 
 export const MAX_ROTATION_PER_FRAME : number = Math.PI / 12;
 
+// Strength values for orientation behaviors
 export const SURFACE_ADAPTATION_STRENGTH : number = 8;
 export const PHOTOTROPISM_RESPONSE_STRENGTH : number = 2;
+
+// Anti-penetration settings
+export const PENETRATION_CORRECTION_STRENGTH : number = 12; // Higher value = stronger correction when penetrating
+export const PENETRATION_CHECK_DISTANCE : number = 0.01; // How far ahead to check for penetration
 
 export const BRANCHING_PROBABILITY : number = 0.0;
 export const BRANCHING_ANGLE_VARIANCE : number = Math.PI/3;
@@ -110,6 +115,19 @@ function polarDecomposition(A: THREE.Matrix3) : THREE.Matrix3 {
 // Helper function to clamp a value between min and max
 function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Calculates the normal of a triangle
+ * @param a First vertex of the triangle
+ * @param b Second vertex of the triangle
+ * @param c Third vertex of the triangle
+ * @returns The normalized normal vector of the triangle
+ */
+function calculateTriangleNormal(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): THREE.Vector3 {
+    const edge1 = b.clone().sub(a);
+    const edge2 = c.clone().sub(a);
+    return edge1.cross(edge2).normalize();
 }
 
 /**
@@ -186,6 +204,18 @@ function closestPointOnTriangle(point: THREE.Vector3, a: THREE.Vector3, b: THREE
     return closest;
 }
 
+/**
+ * Projects a vector onto a plane defined by its normal
+ * @param vector The vector to project
+ * @param normal The normal of the plane
+ * @returns The projected vector (tangent to the plane)
+ */
+function projectVectorOntoPlane(vector: THREE.Vector3, normal: THREE.Vector3): THREE.Vector3 {
+    // Formula: v_projected = v - (v·n)n
+    const dotProduct = vector.dot(normal);
+    return vector.clone().sub(normal.clone().multiplyScalar(dotProduct));
+}
+
 class Particle {
     widthLOD : number = 8;
     heightLOD : number = 4;
@@ -213,6 +243,7 @@ class Particle {
     w: THREE.Vector3; // Angular Velocity
 
     x_anchor: THREE.Vector3; // Anchor position
+    surfaceNormal: THREE.Vector3 | null = null; // Normal of the surface at the anchor point
 
     c: THREE.Vector3; // Center of mass of the group
     c_rest: THREE.Vector3; // Rest Center of mass of the group
@@ -234,6 +265,9 @@ class Particle {
 
     hasApicalChild: boolean = false; // True if the ellipsoid has an apical child
     isSeed: boolean = false; // True if the ellipsoid is the seed of the plant
+
+    // Track if we're currently correcting for penetration
+    isPenetrating: boolean = false;
 
     /**
      *
@@ -308,17 +342,31 @@ class Particle {
     }
 
     updateAnchor(octree: Octree) {
-        this.x_anchor = this.closestAnchor(this.x, octree);
+        const closestTriangle = octree.getClosestTriangleFromPoint(this.x);
+        
+        // Update surface normal
+        this.surfaceNormal = calculateTriangleNormal(
+            closestTriangle.a,
+            closestTriangle.b,
+            closestTriangle.c
+        );
+        
+        // Get closest point on triangle
+        this.x_anchor = closestPointOnTriangle(
+            this.x,
+            closestTriangle.a,
+            closestTriangle.b,
+            closestTriangle.c
+        );
     }
 
     rotate(angle: number, axis: THREE.Vector3) {
         // Update the particle's quaternion
         const rotation = new THREE.Quaternion().setFromAxisAngle(axis, angle);
         this.q.premultiply(rotation);
+        this.q.normalize(); // Ensure quaternion stays normalized
     }
     
-
-
     updateMass() {
         this.mass = this.rho * 4*Math.PI/3 * this.dimensions.x * this.dimensions.y * this.dimensions.z;
     }
@@ -340,7 +388,6 @@ class Particle {
     f(depth: number) : number {
         return Math.pow(0.95, depth);
     }
-
 
     closestAnchor(position: THREE.Vector3, octree: Octree) : THREE.Vector3 {
         const closestTriangle = octree.getClosestTriangleFromPoint(position);
@@ -380,6 +427,86 @@ class Particle {
 
     getHead() : THREE.Vector3 {
         return this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y));
+    }
+
+    // Check if the growth direction will lead to entering into the mesh
+    checkPenetration(octree: Octree): boolean {
+        if (this.isSeed) return false;
+        
+        // Get the current growth direction
+        const growthDir = this.getDir();
+        
+        // Look ahead to see where the tip/head will be
+        const lookAheadPoint = this.getHead().add(growthDir.clone().multiplyScalar(PENETRATION_CHECK_DISTANCE));
+        
+        // Find the closest point on the surface to the look-ahead point
+        const closestTriangle = octree.getClosestTriangleFromPoint(lookAheadPoint);
+        const closestPoint = closestPointOnTriangle(
+            lookAheadPoint,
+            closestTriangle.a,
+            closestTriangle.b, 
+            closestTriangle.c
+        );
+        
+        // Calculate the surface normal at this point
+        const surfaceNormal = calculateTriangleNormal(
+            closestTriangle.a,
+            closestTriangle.b,
+            closestTriangle.c
+        );
+        
+        // Vector from look-ahead point to closest surface point
+        const toSurface = closestPoint.clone().sub(lookAheadPoint);
+        
+        // Check if we're pointing into the surface by comparing with normal
+        // If the dot product of growth direction and surface normal is negative,
+        // we're trying to grow into the surface
+        const dotWithNormal = growthDir.dot(surfaceNormal);
+        
+        // We're penetrating if:
+        // 1. Look-ahead point is close to surface (toSurface length is small)
+        // 2. AND we're pointing into the surface
+        const distanceToSurface = toSurface.length();
+        const isPenetrating = distanceToSurface < this.dimensions.y * 0.5 && dotWithNormal < 0;
+        
+        this.isPenetrating = isPenetrating;
+        return isPenetrating;
+    }
+
+    // Apply a corrective rotation to avoid penetrating the surface
+    correctPenetration(octree: Octree, dt: number) {
+        if (this.isSeed || !this.isPenetrating || !this.surfaceNormal) return;
+        
+        // Get the current growth direction
+        const growthDir = this.getDir();
+        
+        // We want to rotate toward the surface normal
+        const rotationAxis = growthDir.clone().cross(this.surfaceNormal).normalize();
+        
+        // If rotation axis is too small (vectors are nearly parallel)
+        if (rotationAxis.lengthSq() < EPSILON) {
+            // Try a different approach - rotate around any axis perpendicular to growth
+            const worldUp = new THREE.Vector3(0, 1, 0);
+            rotationAxis.copy(worldUp.cross(growthDir));
+            
+            // If still too small, try another axis
+            if (rotationAxis.lengthSq() < EPSILON) {
+                rotationAxis.set(1, 0, 0).cross(growthDir);
+            }
+            
+            rotationAxis.normalize();
+        }
+        
+        // Calculate correction angle - stronger when more deeply penetrating
+        // The strength is determined by how much we're pointing into the surface
+        const penetrationAngle = Math.acos(clamp(growthDir.dot(this.surfaceNormal), -1, 1));
+        const correctionStrength = PENETRATION_CORRECTION_STRENGTH * dt;
+        const correctionAngle = clamp(penetrationAngle * correctionStrength, 0, MAX_ROTATION_PER_FRAME);
+        
+        // Apply correction rotation - rotate away from surface
+        const correctionRotation = new THREE.Quaternion().setFromAxisAngle(rotationAxis, correctionAngle);
+        this.q.premultiply(correctionRotation);
+        this.q.normalize();
     }
 
     isStillGrowing() : boolean {
@@ -468,8 +595,6 @@ class Particle {
         this.c.multiplyScalar(1/mass_sum);
         this.c_rest.multiplyScalar(1/mass_sum);
     }
-
-
 
     updateLeastSquareOptimalMatrix() {
         let A : THREE.Matrix3 = new THREE.Matrix3()
@@ -593,15 +718,38 @@ class Particle {
         
         // If the vector is too small, use a default up vector to avoid instability
         if (surfaceVector.lengthSq() < 0.01) {
+            // If we have a parent and normal, use them to determine a better direction
+            if (this.parent && this.surfaceNormal) {
+                // Project parent's direction onto the surface plane
+                const parentDir = this.parent.getDir();
+                const tangentDir = projectVectorOntoPlane(parentDir, this.surfaceNormal);
+                
+                if (tangentDir.lengthSq() > EPSILON) {
+                    return tangentDir.normalize();
+                }
+            }
+            
             return new THREE.Vector3(0, 1, 0);
         }
         
         return surfaceVector.normalize();
     }
 
-    plantOrientation(dt: number, light: any) {
+    plantOrientation(dt: number, light: any, octree: Octree) {
         if (this.hasApicalChild || this.isSeed) return;
         
+        // First, check if we're about to penetrate the surface
+        this.checkPenetration(octree);
+        
+        // If we're penetrating, apply a corrective rotation first
+        if (this.isPenetrating) {
+            this.correctPenetration(octree, dt);
+            // After correction, don't immediately apply other rotations
+            // This lets the correction take priority
+            return;
+        }
+        
+        // Regular growth orientation if not penetrating
         // Get current direction
         const v_f = this.getDir().normalize();
         
@@ -663,6 +811,11 @@ class Particle {
                 this.q.normalize();
             }
         }
+        
+        // After applying all rotations, check again to ensure we didn't introduce a penetration
+        if (this.checkPenetration(octree)) {
+            this.correctPenetration(octree, dt);
+        }
     }
 }
 
@@ -678,7 +831,6 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     let testing = false;
     // Testing
     if (testing) {
-
         return;
     }
     
@@ -687,65 +839,20 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
         particle.selfGrowth(delta_time, octree);
     });
 
-    // Euler integration
-    /*applyToAllParticles(particleGroup, (particle) => {
-        particle.eulerIntegration(delta_time, gravity, externalForce);
-    });
-
-    // Update particles groups centers of mass
+    // Surface adaptation & Phototropism
     applyToAllParticles(particleGroup, (particle) => {
-        particle.updateParticleGroupsCentersOfMass();
+        particle.plantOrientation(delta_time, light, octree);
     });
-
-    // Compute least square optimal matrices for each group
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.updateLeastSquareOptimalMatrix();
-    });
-
-    // Compute particle's target position
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.updateTargetPosition();
-    });
-
-    // Compute particle's goal position (and update weight if needed)
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.updateWeight();
-    });
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.updateGoalPosition();
-    });
-
-    // Correct particle's predicted position with the goal position
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.applyStiffness();
-    });
-
-    // Integration Scheme
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.integrationScheme(delta_time);
-    });*/
-
-    // Correct x towards the nearest anchor
-
-    // Surface adaptation
-    // Phototropism
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.plantOrientation(delta_time, light);
-    });
-
-    // Growth integration
 
     // Grow branches and childs
     applyToAllParticles(particleGroup, (particle) => {
         particle.growApicalChild(particleGroup);
     });
 
-
     // Mesh updates
     applyToAllParticles(particleGroup, (particle) => {
         particle.updateMesh();
     });
-
 }
 
 function particleRope(scene: THREE.Scene, size=10) : Particle[] {
@@ -789,54 +896,5 @@ function horizontalParticleRope(scene: THREE.Scene, size=10) : Particle[] {
     }
     return particles;
 }
-
-/*
-
-export function particleTree(scene, world, depth) {
-    let particles = [];
-    let particule = new Particule(0.5, 32, 16,
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Euler(0, 0, 0),
-        new THREE.MeshPhongMaterial({
-            color: Math.random() * 0xffffff
-        }), new THREE.Mesh(), world, 2, true);
-    particule.createEllipsoid();
-    scene.add(particule.mesh);
-    particles.push(particule);
-
-    let needsChilds = [particule];
-    for (let i = 0; i < depth; i++) {
-        let newNeedsChilds = [];
-        for (const parent of needsChilds) {
-            let numberOfChilds = Math.floor(Math.random() * 3) + 1;
-            if (numberOfChilds !== 1) {
-                numberOfChilds = Math.floor(Math.random() * 3) + 1;
-            }
-            for (let j = 0; j < numberOfChilds; j++) {
-                const child = new Particule(0.5, 32, 16,
-                    new THREE.Vector3(
-                        Math.random() * 1 - .5,
-                        parent.lengthY * 1.8,
-                        Math.random() * 1 - .5),
-                    new THREE.Euler(
-                        0,
-                        0,
-                        0),
-                    new THREE.MeshPhongMaterial({
-                        color: Math.random() * 0xffffff
-                    }), new THREE.Mesh(), world, 2);
-                parent.addChildParticle(child);
-                child.createEllipsoid();
-                scene.add(child.mesh);
-                particles.push(child);
-                newNeedsChilds.push(child);
-            }
-        }
-        needsChilds = newNeedsChilds;
-    }
-    return particles;
-}
-
-*/
 
 export { Particle, updateParticleGroup, particleRope, horizontalParticleRope };

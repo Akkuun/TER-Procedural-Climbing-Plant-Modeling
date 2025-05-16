@@ -72,7 +72,7 @@ export function setupCameraControls(camera: Camera, domElement: HTMLElement | nu
     // Set reasonable limits
     camControls.minPolarAngle = 0;
     camControls.maxPolarAngle = Math.PI * 0.85;
-    camControls.minDistance = 1;
+    camControls.minDistance = 0.05;
     camControls.maxDistance = 100;
     
     // Ensure panning is enabled
