@@ -21,8 +21,8 @@ export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
 export const MAX_WIDTH : number = 0.5;
 export const MAX_HEIGHT : number = 1.0;
 
-export const WIDTH_GROWTH_RATE : number = 0.2;
-export const HEIGHT_GROWTH_RATE : number = 0.6;
+export const WIDTH_GROWTH_RATE : number = 0.4; // 0.2
+export const HEIGHT_GROWTH_RATE : number = 1.2; // 0.6
 
 export const DEFAULT_DIMENSIONS : THREE.Vector3 = new THREE.Vector3(
     SMALLEST_PARTICLE_FACTOR * MAX_WIDTH,
@@ -43,7 +43,12 @@ export const PHOTOTROPISM_RESPONSE_STRENGTH : number = 2;
 
 // Anti-penetration settings
 export const PENETRATION_CORRECTION_STRENGTH : number = 12; // Higher value = stronger correction when penetrating
-export const PENETRATION_CHECK_DISTANCE : number = 0.01; // How far ahead to check for penetration
+export const PENETRATION_CHECK_DISTANCE : number = 0.1; // How far ahead to check for penetration
+
+// Growth variance settings
+export const GROWTH_VARIANCE_MAX : number = 0.3; // Maximum angle deviation (as a fraction of PI)
+export const DIRECTION_SMOOTHING : number = 0.9; // How much to smooth direction changes (0-1)
+export const NORMAL_SMOOTHING_RADIUS : number = 2.0; // Radius to collect and average normals
 
 export const BRANCHING_PROBABILITY : number = 0.0;
 export const BRANCHING_ANGLE_VARIANCE : number = Math.PI/3;
@@ -128,6 +133,43 @@ function calculateTriangleNormal(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Ve
     const edge1 = b.clone().sub(a);
     const edge2 = c.clone().sub(a);
     return edge1.cross(edge2).normalize();
+}
+
+/**
+ * Lerp between two vectors with a smooth step
+ * @param a First vector
+ * @param b Second vector
+ * @param t Interpolation factor (0-1)
+ * @returns Interpolated vector
+ */
+function smoothLerp(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.Vector3 {
+    // Apply smooth step function to t
+    const s = t * t * (3 - 2 * t);
+    return a.clone().lerp(b, s);
+}
+
+/**
+ * Generates a random vector perpendicular to the given direction
+ * @param direction The reference direction
+ * @returns A normalized random vector perpendicular to the direction
+ */
+function randomPerpendicular(direction: THREE.Vector3): THREE.Vector3 {
+    // Create a randomized vector
+    const randomVec = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1
+    ).normalize();
+    
+    // Get a vector perpendicular to the direction
+    const perpendicular = direction.clone().cross(randomVec);
+    
+    // If perpendicular is too small, try again with a different random vector
+    if (perpendicular.lengthSq() < EPSILON) {
+        return randomPerpendicular(direction);
+    }
+    
+    return perpendicular.normalize();
 }
 
 /**
@@ -244,6 +286,7 @@ class Particle {
 
     x_anchor: THREE.Vector3; // Anchor position
     surfaceNormal: THREE.Vector3 | null = null; // Normal of the surface at the anchor point
+    smoothedNormal: THREE.Vector3 | null = null; // Smoothed normal averaged from nearby triangles
 
     c: THREE.Vector3; // Center of mass of the group
     c_rest: THREE.Vector3; // Rest Center of mass of the group
@@ -268,6 +311,14 @@ class Particle {
 
     // Track if we're currently correcting for penetration
     isPenetrating: boolean = false;
+    
+    // Growth variance
+    biasAxis: THREE.Vector3 | null = null; // Axis for random growth direction 
+    biasAngle: number = 0; // Angle for random growth direction
+    preferredDir: THREE.Vector3 | null = null; // Smoothed direction that combines previous directions
+    
+    // Normal smoothing
+    lastValidSurfaceNormal: THREE.Vector3 | null = null;
 
     /**
      *
@@ -320,6 +371,49 @@ class Particle {
         this.scene.add(this.pointAtXRest);
 
         this.x_anchor = this.x.clone();
+        
+        // Initialize growth bias with consistent random direction
+        if (!isSeed) {
+            this.initializeGrowthBias();
+        }
+    }
+    
+    /**
+     * Initialize a stable random growth bias
+     */
+    initializeGrowthBias(): void {
+        // Get the initial growth direction (from parent or default up)
+        const initialDir = this.parent ? this.parent.getDir() : new THREE.Vector3(0, 1, 0);
+        
+        // Create a random axis perpendicular to the growth direction
+        this.biasAxis = randomPerpendicular(initialDir);
+        
+        // Random angle for consistent deviation
+        // Using triangular distribution for more natural variation
+        const r1 = Math.random();
+        const r2 = Math.random();
+        const triangular = (r1 + r2) / 2; // Values cluster around 0.5
+        
+        // Map to [-GROWTH_VARIANCE_MAX, GROWTH_VARIANCE_MAX] * PI
+        this.biasAngle = (triangular * 2 - 1) * GROWTH_VARIANCE_MAX * Math.PI;
+        
+        // Initialize the preferred direction with the current direction
+        this.preferredDir = this.getDir().clone();
+    }
+
+    /**
+     * Apply the consistent growth bias to a direction
+     * @param direction The direction to apply bias to
+     * @returns A new direction with bias applied
+     */
+    applyGrowthBias(direction: THREE.Vector3): THREE.Vector3 {
+        if (!this.biasAxis || this.isSeed) return direction.clone();
+        
+        // Create a rotation quaternion representing our bias
+        const rotation = new THREE.Quaternion().setFromAxisAngle(this.biasAxis, this.biasAngle);
+        
+        // Apply the rotation to the direction
+        return direction.clone().applyQuaternion(rotation).normalize();
     }
 
     stillGrowing() : boolean {
@@ -344,12 +438,35 @@ class Particle {
     updateAnchor(octree: Octree) {
         const closestTriangle = octree.getClosestTriangleFromPoint(this.x);
         
-        // Update surface normal
-        this.surfaceNormal = calculateTriangleNormal(
+        // Calculate the normal of the closest triangle
+        const triangleNormal = calculateTriangleNormal(
             closestTriangle.a,
             closestTriangle.b,
             closestTriangle.c
         );
+        
+        // Store this normal
+        this.surfaceNormal = triangleNormal;
+        
+        // If we have a previous valid normal, smooth the transition
+        if (this.lastValidSurfaceNormal) {
+            // Only smooth if they're not too different (to avoid smoothing drastically different areas)
+            const dotProduct = this.lastValidSurfaceNormal.dot(triangleNormal);
+            if (dotProduct > 0.7) { // Less than ~45 degrees difference
+                this.smoothedNormal = smoothLerp(
+                    this.lastValidSurfaceNormal,
+                    triangleNormal,
+                    0.3 // Smooth factor - higher = more responsive to changes
+                ).normalize();
+            } else {
+                this.smoothedNormal = triangleNormal;
+            }
+        } else {
+            this.smoothedNormal = triangleNormal;
+        }
+        
+        // Save this normal for next time
+        this.lastValidSurfaceNormal = triangleNormal;
         
         // Get closest point on triangle
         this.x_anchor = closestPointOnTriangle(
@@ -475,13 +592,16 @@ class Particle {
 
     // Apply a corrective rotation to avoid penetrating the surface
     correctPenetration(octree: Octree, dt: number) {
-        if (this.isSeed || !this.isPenetrating || !this.surfaceNormal) return;
+        if (this.isSeed || !this.isPenetrating || !this.smoothedNormal) return;
         
         // Get the current growth direction
         const growthDir = this.getDir();
         
+        // Use the smoothed normal to avoid abrupt changes
+        const normal = this.smoothedNormal;
+        
         // We want to rotate toward the surface normal
-        const rotationAxis = growthDir.clone().cross(this.surfaceNormal).normalize();
+        const rotationAxis = growthDir.clone().cross(normal).normalize();
         
         // If rotation axis is too small (vectors are nearly parallel)
         if (rotationAxis.lengthSq() < EPSILON) {
@@ -499,7 +619,7 @@ class Particle {
         
         // Calculate correction angle - stronger when more deeply penetrating
         // The strength is determined by how much we're pointing into the surface
-        const penetrationAngle = Math.acos(clamp(growthDir.dot(this.surfaceNormal), -1, 1));
+        const penetrationAngle = Math.acos(clamp(growthDir.dot(normal), -1, 1));
         const correctionStrength = PENETRATION_CORRECTION_STRENGTH * dt;
         const correctionAngle = clamp(penetrationAngle * correctionStrength, 0, MAX_ROTATION_PER_FRAME);
         
@@ -507,6 +627,12 @@ class Particle {
         const correctionRotation = new THREE.Quaternion().setFromAxisAngle(rotationAxis, correctionAngle);
         this.q.premultiply(correctionRotation);
         this.q.normalize();
+        
+        // When we correct for penetration, we need to recalculate our preferred direction
+        if (this.preferredDir) {
+            const newDir = this.getDir();
+            this.preferredDir = smoothLerp(this.preferredDir, newDir, 0.5).normalize();
+        }
     }
 
     isStillGrowing() : boolean {
@@ -716,13 +842,13 @@ class Particle {
         // Get vector from current position to anchor point on the surface
         const surfaceVector = this.x_anchor.clone().sub(this.x);
         
-        // If the vector is too small, use a default up vector to avoid instability
+        // If the vector is too small, try to use smoothed normal and parent direction
         if (surfaceVector.lengthSq() < 0.01) {
-            // If we have a parent and normal, use them to determine a better direction
-            if (this.parent && this.surfaceNormal) {
+            // If we have a parent and smoothed normal, use them to determine a better direction
+            if (this.parent && this.smoothedNormal) {
                 // Project parent's direction onto the surface plane
                 const parentDir = this.parent.getDir();
-                const tangentDir = projectVectorOntoPlane(parentDir, this.surfaceNormal);
+                const tangentDir = projectVectorOntoPlane(parentDir, this.smoothedNormal);
                 
                 if (tangentDir.lengthSq() > EPSILON) {
                     return tangentDir.normalize();
@@ -735,6 +861,27 @@ class Particle {
         return surfaceVector.normalize();
     }
 
+    /**
+     * Update the preferred growth direction
+     * This maintains consistency in growth direction
+     */
+    updatePreferredDirection(dt: number): void {
+        if (this.isSeed || !this.preferredDir) return;
+        
+        // Get current direction
+        const currentDir = this.getDir();
+        
+        // Apply our stable growth bias
+        const biasedDir = this.applyGrowthBias(currentDir);
+        
+        // Smoothly blend with the existing preferred direction
+        this.preferredDir = smoothLerp(
+            this.preferredDir,
+            biasedDir,
+            dt * (1 - DIRECTION_SMOOTHING) // Smaller values = more smoothing
+        ).normalize();
+    }
+
     plantOrientation(dt: number, light: any, octree: Octree) {
         if (this.hasApicalChild || this.isSeed) return;
         
@@ -744,21 +891,39 @@ class Particle {
         // If we're penetrating, apply a corrective rotation first
         if (this.isPenetrating) {
             this.correctPenetration(octree, dt);
-            // After correction, don't immediately apply other rotations
-            // This lets the correction take priority
-            return;
+            // After correction, still continue with other orientations
+            // but with reduced strength to allow correction to be effective
+            dt *= 0.5;
         }
         
-        // Regular growth orientation if not penetrating
+        // Update our stable preferred direction
+        this.updatePreferredDirection(dt);
+        
         // Get current direction
         const v_f = this.getDir().normalize();
         
         // Get direction to surface (normalized vector from particle to closest anchor)
         const v_s = this.getVs();
         
+        // If we have a preferred direction, blend it with the surface vector
+        let targetDir = v_s;
+        if (this.preferredDir) {
+            // Project the preferred direction onto the surface plane if we have a normal
+            if (this.smoothedNormal) {
+                const tangentPreferred = projectVectorOntoPlane(this.preferredDir, this.smoothedNormal);
+                if (tangentPreferred.lengthSq() > EPSILON) {
+                    // Blend between surface vector and preferred direction
+                    targetDir = v_s.clone().lerp(tangentPreferred.normalize(), 0.5).normalize();
+                }
+            } else {
+                // If no normal available, just blend directly
+                targetDir = v_s.clone().lerp(this.preferredDir, 0.5).normalize();
+            }
+        }
+        
         // Calculate surface adaptation
         // Cross product gives axis of rotation
-        const a_a = v_f.clone().cross(v_s).normalize();
+        const a_a = v_f.clone().cross(targetDir).normalize();
         
         // If vectors are nearly parallel, rotation axis might be undefined
         if (a_a.lengthSq() < EPSILON) {
@@ -768,10 +933,13 @@ class Particle {
             // 1 - dot product gives a value between 0 and 2, where:
             // - 0 means vectors are parallel (no rotation needed)
             // - 2 means vectors are opposite (max rotation needed)
-            const alignmentFactor = 1 - v_f.clone().dot(v_s);
+            const alignmentFactor = 1 - v_f.clone().dot(targetDir);
+            
+            // Apply a smoothed rotation to prevent sudden changes
+            // Stronger adaptation for more misalignment
             const alpha_a = clamp(alignmentFactor * SURFACE_ADAPTATION_STRENGTH * dt, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
             
-            // Apply rotation toward surface
+            // Apply rotation toward surface-preferred direction
             if (Math.abs(alpha_a) > EPSILON) {
                 const rotation = new THREE.Quaternion().setFromAxisAngle(a_a, alpha_a);
                 this.q.premultiply(rotation);
