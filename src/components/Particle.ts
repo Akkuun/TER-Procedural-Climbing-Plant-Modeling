@@ -35,6 +35,8 @@ export const DELTA_HEIGHT : number = HEIGHT_GROWTH_RATE * MAX_HEIGHT;
 
 export const VEC_UP : THREE.Vector3 = new THREE.Vector3(0, 1, 0);
 
+export const MAX_ROTATION_PER_FRAME : number = Math.PI / 12;
+
 export const SURFACE_ADAPTATION_STRENGTH : number = 8;
 export const PHOTOTROPISM_RESPONSE_STRENGTH : number = 2;
 
@@ -103,6 +105,85 @@ function polarDecomposition(A: THREE.Matrix3) : THREE.Matrix3 {
         v[0][2], v[1][2], v[2][2]
     );
     return U.multiply(Vt);
+}
+
+// Helper function to clamp a value between min and max
+function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Finds the closest point on a triangle to a given point
+ * @param point The point to find the closest point to
+ * @param a First vertex of the triangle
+ * @param b Second vertex of the triangle
+ * @param c Third vertex of the triangle
+ * @returns The closest point on the triangle
+ */
+function closestPointOnTriangle(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): THREE.Vector3 {
+    // Check if point is in vertex region outside a
+    const ab = b.clone().sub(a);
+    const ac = c.clone().sub(a);
+    const ap = point.clone().sub(a);
+    
+    const d1 = ab.dot(ap);
+    const d2 = ac.dot(ap);
+    
+    // Barycentric coordinates (1, 0, 0)
+    if (d1 <= 0 && d2 <= 0) {
+        return a.clone();
+    }
+    
+    // Check if point is in vertex region outside b
+    const bp = point.clone().sub(b);
+    const d3 = ab.dot(bp);
+    const d4 = ac.dot(bp);
+    
+    // Barycentric coordinates (0, 1, 0)
+    if (d3 >= 0 && d4 <= d3) {
+        return b.clone();
+    }
+    
+    // Check if point is in edge region of AB, if so return projection of point onto AB
+    const vc = d1 * d4 - d3 * d2;
+    if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+        const v = d1 / (d1 - d3);
+        return a.clone().add(ab.multiplyScalar(v));
+    }
+    
+    // Check if point is in vertex region outside c
+    const cp = point.clone().sub(c);
+    const d5 = ab.dot(cp);
+    const d6 = ac.dot(cp);
+    
+    // Barycentric coordinates (0, 0, 1)
+    if (d6 >= 0 && d5 <= d6) {
+        return c.clone();
+    }
+    
+    // Check if point is in edge region of AC, if so return projection of point onto AC
+    const vb = d5 * d2 - d1 * d6;
+    if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+        const w = d2 / (d2 - d6);
+        return a.clone().add(ac.multiplyScalar(w));
+    }
+    
+    // Check if point is in edge region of BC, if so return projection of point onto BC
+    const va = d3 * d6 - d5 * d4;
+    const bc = c.clone().sub(b);
+    if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
+        const w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b.clone().add(bc.multiplyScalar(w));
+    }
+    
+    // Point is inside the face region. Compute the closest point using barycentric coordinates
+    const denom = 1.0 / (va + vb + vc);
+    const v = vb * denom;
+    const w = vc * denom;
+    
+    // The closest point is: a + v*ab + w*ac
+    const closest = a.clone().add(ab.multiplyScalar(v)).add(ac.multiplyScalar(w));
+    return closest;
 }
 
 class Particle {
@@ -260,12 +341,16 @@ class Particle {
         return Math.pow(0.95, depth);
     }
 
+
     closestAnchor(position: THREE.Vector3, octree: Octree) : THREE.Vector3 {
         const closestTriangle = octree.getClosestTriangleFromPoint(position);
-        return new THREE.Vector3(
-            (closestTriangle.a.x + closestTriangle.b.x + closestTriangle.c.x) / 3,
-            (closestTriangle.a.y + closestTriangle.b.y + closestTriangle.c.y) / 3,
-            (closestTriangle.a.z + closestTriangle.b.z + closestTriangle.c.z) / 3
+        
+        // Instead of using the center of the triangle, find the actual closest point on the triangle
+        return closestPointOnTriangle(
+            position,
+            closestTriangle.a,
+            closestTriangle.b,
+            closestTriangle.c
         );
     }
     
@@ -484,34 +569,100 @@ class Particle {
     }
 
     applyDoubleRot(q: THREE.Quaternion, axis1: THREE.Vector3, angle1: number, axis2: THREE.Vector3, angle2: number) : THREE.Euler {
-        let quaternion = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis1, angle1)).multiply(new THREE.Quaternion().setFromAxisAngle(axis2, angle2));
+        // Clamp rotation angles to avoid excessive rotation
+        angle1 = clamp(angle1, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+        angle2 = clamp(angle2, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+        
+        const q1 = new THREE.Quaternion().setFromAxisAngle(axis1, angle1);
+        const q2 = new THREE.Quaternion().setFromAxisAngle(axis2, angle2);
+        
+        // Apply rotations in sequence
+        let quaternion = q.clone().multiply(q1).multiply(q2);
+        quaternion.normalize(); // Ensure the quaternion is normalized
+        
         return new THREE.Euler().setFromQuaternion(quaternion);
     }
 
     getVs() : THREE.Vector3 {
-        return this.x.clone().sub(this.x_anchor).normalize();
+        if (this.isSeed) {
+            return new THREE.Vector3(0, 1, 0);  // Always use up vector for seed
+        }
+        
+        // Get vector from current position to anchor point on the surface
+        const surfaceVector = this.x_anchor.clone().sub(this.x);
+        
+        // If the vector is too small, use a default up vector to avoid instability
+        if (surfaceVector.lengthSq() < 0.01) {
+            return new THREE.Vector3(0, 1, 0);
+        }
+        
+        return surfaceVector.normalize();
     }
 
     plantOrientation(dt: number, light: any) {
-        if (this.hasApicalChild) return;
-        // Surface adaptation
-        let v_s = this.getVs();
-        let v_f = this.getDir().normalize();
-        let a_a = v_s.clone().cross(v_f).normalize(); // norm ??
-        let alpha_a = v_s.clone().dot(v_f) * SURFACE_ADAPTATION_STRENGTH * dt;
-
-        // Phototropism
-        let v_l = light.position.clone();
-        let d_l = v_l.clone().sub(this.x);
-
-        let radial = d_l.length();
-        let occlusion = 25/(radial*radial);
+        if (this.hasApicalChild || this.isSeed) return;
+        
+        // Get current direction
+        const v_f = this.getDir().normalize();
+        
+        // Get direction to surface (normalized vector from particle to closest anchor)
+        const v_s = this.getVs();
+        
+        // Calculate surface adaptation
+        // Cross product gives axis of rotation
+        const a_a = v_f.clone().cross(v_s).normalize();
+        
+        // If vectors are nearly parallel, rotation axis might be undefined
+        if (a_a.lengthSq() < EPSILON) {
+            // Skip surface adaptation for this frame
+        } else {
+            // Calculate rotation angle for surface adaptation
+            // 1 - dot product gives a value between 0 and 2, where:
+            // - 0 means vectors are parallel (no rotation needed)
+            // - 2 means vectors are opposite (max rotation needed)
+            const alignmentFactor = 1 - v_f.clone().dot(v_s);
+            const alpha_a = clamp(alignmentFactor * SURFACE_ADAPTATION_STRENGTH * dt, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+            
+            // Apply rotation toward surface
+            if (Math.abs(alpha_a) > EPSILON) {
+                const rotation = new THREE.Quaternion().setFromAxisAngle(a_a, alpha_a);
+                this.q.premultiply(rotation);
+                this.q.normalize();
+            }
+        }
+        
+        // Phototropism calculation (attraction to light)
+        // Vector from particle to light source
+        const d_l = light.position.clone().sub(this.x);
+        
+        // Distance to light affects strength of phototropism
+        const distanceToLight = d_l.length();
+        // Define a minimum distance to prevent extreme rotation when very close to light
+        const minDistance = 1.0;
+        // Inverse square falloff with a minimum distance cap
+        const occlusion = 5 / Math.max(distanceToLight * distanceToLight, minDistance);
+        
         d_l.normalize();
-
-        let a_p = v_f.clone().cross(d_l).normalize();
-        let alpha_p = (v_f.clone().dot(d_l) * PHOTOTROPISM_RESPONSE_STRENGTH * dt) * occlusion;
-        let new_rot = this.applyDoubleRot(this.q, a_a, alpha_a, a_p, alpha_p);
-        this.q.setFromEuler(new_rot);
+        
+        // Calculate phototropism rotation axis and angle
+        const a_p = v_f.clone().cross(d_l).normalize();
+        
+        // Skip if rotation axis is undefined (vectors are parallel)
+        if (a_p.lengthSq() > EPSILON) {
+            // Dot product determines how much rotation is needed
+            // A positive dot product means we're already facing toward the light
+            const dotProduct = v_f.clone().dot(d_l);
+            
+            // Scale the rotation angle based on alignment and distance
+            const alpha_p = clamp(dotProduct * PHOTOTROPISM_RESPONSE_STRENGTH * dt * occlusion, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+            
+            // Apply rotation toward light
+            if (Math.abs(alpha_p) > EPSILON) {
+                const rotation = new THREE.Quaternion().setFromAxisAngle(a_p, alpha_p);
+                this.q.premultiply(rotation);
+                this.q.normalize();
+            }
+        }
     }
 }
 
