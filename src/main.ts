@@ -6,8 +6,6 @@ import { updateControls, setupCameraControls, setupMouseInteraction } from './ut
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
-import {particleRope} from './components/Particle';
-import { horizontalParticleRope } from './components/Particle';
 import {Particle} from './components/Particle';
 import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
