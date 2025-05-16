@@ -208,13 +208,17 @@ class Particle {
     }
 
     selfGrowth(dt: number, octree: Octree) {
+        let grown = false;
         if (this.dimensions.x < MAX_WIDTH) {
             this.dimensions.x += DELTA_WIDTH * dt;
             this.dimensions.y += DELTA_WIDTH * dt;
+            grown = true;
         }
         if (this.dimensions.z < MAX_HEIGHT) {
             this.dimensions.z += DELTA_HEIGHT * dt;
+            grown = true;
         }
+        if (!grown) return;
         this.updateMass();
         this.updateMomentMatrix();
         this.updateAnchor(octree);
@@ -494,18 +498,13 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
         return;
     }
     
-    // Self growth
+    // Self growth & anchor update
     applyToAllParticles(particleGroup, (particle) => {
         particle.selfGrowth(delta_time, octree);
     });
 
-    // Anchor update
-    applyToAllParticles(particleGroup, (particle) => {
-        particle.updateAnchor(octree);
-    });
-
     // Euler integration
-    applyToAllParticles(particleGroup, (particle) => {
+    /*applyToAllParticles(particleGroup, (particle) => {
         particle.eulerIntegration(delta_time, gravity, externalForce);
     });
 
@@ -540,7 +539,7 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     // Integration Scheme
     applyToAllParticles(particleGroup, (particle) => {
         particle.integrationScheme(delta_time);
-    });
+    });*/
 
     // Correct x towards the nearest anchor
 
