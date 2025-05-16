@@ -8,9 +8,10 @@ import {scene} from "../utils/Scene";
 import {Vector3} from "three";
 import { Octree } from "utils/Octree";
 import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
-import { SVD } from "svd-js";
 import { Quat } from "../utils/physics/Quaternion";
 import { coordonneToObject } from "../utils/coordonneToObject";
+
+import * as MathsUtils from "../utils/MathsUtils";
 
 export const MAX_PARTICLE_CHILDS : number = 4;
 export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
@@ -56,207 +57,6 @@ export const BRANCHING_ANGLE_VARIANCE : number = Math.PI/3;
 export const WIREFRAME : boolean = true;
 
 export const STIFFNESS : number = 0.2;
-
-const PI : number = Math.PI;
-const EPSILON : number = 0.0001;
-
-function mat3Add(a: THREE.Matrix3, b: THREE.Matrix3): THREE.Matrix3 {
-    return new THREE.Matrix3().set(
-        // THREE.Matrix3 is stored in column-major order
-        // But Matrix3.set takes values in row-major order
-        // https://threejs.org/docs/?q=matrix#api/en/math/Matrix3
-        a.elements[0] + b.elements[0], a.elements[3] + b.elements[3], a.elements[6] + b.elements[6],
-        a.elements[1] + b.elements[1], a.elements[4] + b.elements[4], a.elements[7] + b.elements[7],
-        a.elements[2] + b.elements[2], a.elements[5] + b.elements[5], a.elements[8] + b.elements[8]
-    )
-}
-
-function mat3FromQuaternion(q: THREE.Quaternion): THREE.Matrix3 {
-    const x = q.x, y = q.y, z = q.z, w = q.w;
-    return new THREE.Matrix3().set(
-        1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
-        2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
-        2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)
-    );
-}
-
-function matrix3To2DArray(matrix: THREE.Matrix3): number[][] {
-    const elements = matrix.elements; 
-    return [
-        // THREE.Matrix3 is stored in column-major order
-        [elements[0], elements[3], elements[6]], // Column 1
-        [elements[1], elements[4], elements[7]], // Column 2
-        [elements[2], elements[5], elements[8]], // Column 3
-    ];
-}
-
-function getRot(axis: THREE.Vector3, angle: number): THREE.Matrix3 {
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
-    const t = 1 - c;
-
-    return new THREE.Matrix3().set(
-        t * axis.x * axis.x + c, t * axis.x * axis.y - s * axis.z, t * axis.x * axis.z + s * axis.y,
-        t * axis.y * axis.x + s * axis.z, t * axis.y * axis.y + c, t * axis.y * axis.z - s * axis.x,
-        t * axis.z * axis.x - s * axis.y, t * axis.z * axis.y + s * axis.x, t * axis.z * axis.z + c
-    );
-}
-
-function polarDecomposition(A: THREE.Matrix3) : THREE.Matrix3 {
-    const {u, q, v} = SVD(matrix3To2DArray(A));
-    const U = new THREE.Matrix3().set(
-        u[0][0], u[0][1], u[0][2],
-        u[1][0], u[1][1], u[1][2],
-        u[2][0], u[2][1], u[2][2]
-    );
-    const Vt = new THREE.Matrix3().set(
-        v[0][0], v[1][0], v[2][0],
-        v[0][1], v[1][1], v[2][1],
-        v[0][2], v[1][2], v[2][2]
-    );
-    return U.multiply(Vt);
-}
-
-// Helper function to clamp a value between min and max
-function clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value));
-}
-
-/**
- * Calculates the normal of a triangle
- * @param a First vertex of the triangle
- * @param b Second vertex of the triangle
- * @param c Third vertex of the triangle
- * @returns The normalized normal vector of the triangle
- */
-function calculateTriangleNormal(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): THREE.Vector3 {
-    const edge1 = b.clone().sub(a);
-    const edge2 = c.clone().sub(a);
-    return edge1.cross(edge2).normalize();
-}
-
-/**
- * Lerp between two vectors with a smooth step
- * @param a First vector
- * @param b Second vector
- * @param t Interpolation factor (0-1)
- * @returns Interpolated vector
- */
-function smoothLerp(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.Vector3 {
-    // Apply smooth step function to t
-    const s = t * t * (3 - 2 * t);
-    return a.clone().lerp(b, s);
-}
-
-/**
- * Generates a random vector perpendicular to the given direction
- * @param direction The reference direction
- * @returns A normalized random vector perpendicular to the direction
- */
-function randomPerpendicular(direction: THREE.Vector3): THREE.Vector3 {
-    // Create a randomized vector
-    const randomVec = new THREE.Vector3(
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1
-    ).normalize();
-    
-    // Get a vector perpendicular to the direction
-    const perpendicular = direction.clone().cross(randomVec);
-    
-    // If perpendicular is too small, try again with a different random vector
-    if (perpendicular.lengthSq() < EPSILON) {
-        return randomPerpendicular(direction);
-    }
-    
-    return perpendicular.normalize();
-}
-
-/**
- * Finds the closest point on a triangle to a given point
- * @param point The point to find the closest point to
- * @param a First vertex of the triangle
- * @param b Second vertex of the triangle
- * @param c Third vertex of the triangle
- * @returns The closest point on the triangle
- */
-function closestPointOnTriangle(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): THREE.Vector3 {
-    // Check if point is in vertex region outside a
-    const ab = b.clone().sub(a);
-    const ac = c.clone().sub(a);
-    const ap = point.clone().sub(a);
-    
-    const d1 = ab.dot(ap);
-    const d2 = ac.dot(ap);
-    
-    // Barycentric coordinates (1, 0, 0)
-    if (d1 <= 0 && d2 <= 0) {
-        return a.clone();
-    }
-    
-    // Check if point is in vertex region outside b
-    const bp = point.clone().sub(b);
-    const d3 = ab.dot(bp);
-    const d4 = ac.dot(bp);
-    
-    // Barycentric coordinates (0, 1, 0)
-    if (d3 >= 0 && d4 <= d3) {
-        return b.clone();
-    }
-    
-    // Check if point is in edge region of AB, if so return projection of point onto AB
-    const vc = d1 * d4 - d3 * d2;
-    if (vc <= 0 && d1 >= 0 && d3 <= 0) {
-        const v = d1 / (d1 - d3);
-        return a.clone().add(ab.multiplyScalar(v));
-    }
-    
-    // Check if point is in vertex region outside c
-    const cp = point.clone().sub(c);
-    const d5 = ab.dot(cp);
-    const d6 = ac.dot(cp);
-    
-    // Barycentric coordinates (0, 0, 1)
-    if (d6 >= 0 && d5 <= d6) {
-        return c.clone();
-    }
-    
-    // Check if point is in edge region of AC, if so return projection of point onto AC
-    const vb = d5 * d2 - d1 * d6;
-    if (vb <= 0 && d2 >= 0 && d6 <= 0) {
-        const w = d2 / (d2 - d6);
-        return a.clone().add(ac.multiplyScalar(w));
-    }
-    
-    // Check if point is in edge region of BC, if so return projection of point onto BC
-    const va = d3 * d6 - d5 * d4;
-    const bc = c.clone().sub(b);
-    if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
-        const w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-        return b.clone().add(bc.multiplyScalar(w));
-    }
-    
-    // Point is inside the face region. Compute the closest point using barycentric coordinates
-    const denom = 1.0 / (va + vb + vc);
-    const v = vb * denom;
-    const w = vc * denom;
-    
-    // The closest point is: a + v*ab + w*ac
-    const closest = a.clone().add(ab.multiplyScalar(v)).add(ac.multiplyScalar(w));
-    return closest;
-}
-
-/**
- * Projects a vector onto a plane defined by its normal
- * @param vector The vector to project
- * @param normal The normal of the plane
- * @returns The projected vector (tangent to the plane)
- */
-function projectVectorOntoPlane(vector: THREE.Vector3, normal: THREE.Vector3): THREE.Vector3 {
-    // Formula: v_projected = v - (v·n)n
-    const dotProduct = vector.dot(normal);
-    return vector.clone().sub(normal.clone().multiplyScalar(dotProduct));
-}
 
 class Particle {
     widthLOD : number = 8;
@@ -342,7 +142,7 @@ class Particle {
         this.q_rest = this.q.clone();
         this.q_pred = this.q.clone();
 
-        this.R = mat3FromQuaternion(this.q).clone();
+        this.R = MathsUtils.mat3FromQuaternion(this.q).clone();
         this.R_rest = this.R.clone();
 
         this.v = new THREE.Vector3(0, 0, 0);
@@ -386,7 +186,7 @@ class Particle {
         const initialDir = this.parent ? this.parent.getDir() : new THREE.Vector3(0, 1, 0);
         
         // Create a random axis perpendicular to the growth direction
-        this.biasAxis = randomPerpendicular(initialDir);
+        this.biasAxis = MathsUtils.randomPerpendicular(initialDir);
         
         // Random angle for consistent deviation
         // Using triangular distribution for more natural variation
@@ -439,7 +239,7 @@ class Particle {
         const closestTriangle = octree.getClosestTriangleFromPoint(this.x);
         
         // Calculate the normal of the closest triangle
-        const triangleNormal = calculateTriangleNormal(
+        const triangleNormal = MathsUtils.calculateTriangleNormal(
             closestTriangle.a,
             closestTriangle.b,
             closestTriangle.c
@@ -453,7 +253,7 @@ class Particle {
             // Only smooth if they're not too different (to avoid smoothing drastically different areas)
             const dotProduct = this.lastValidSurfaceNormal.dot(triangleNormal);
             if (dotProduct > 0.7) { // Less than ~45 degrees difference
-                this.smoothedNormal = smoothLerp(
+                this.smoothedNormal = MathsUtils.smoothLerp(
                     this.lastValidSurfaceNormal,
                     triangleNormal,
                     0.3 // Smooth factor - higher = more responsive to changes
@@ -469,7 +269,7 @@ class Particle {
         this.lastValidSurfaceNormal = triangleNormal;
         
         // Get closest point on triangle
-        this.x_anchor = closestPointOnTriangle(
+        this.x_anchor = MathsUtils.closestPointOnTriangle(
             this.x,
             closestTriangle.a,
             closestTriangle.b,
@@ -510,7 +310,7 @@ class Particle {
         const closestTriangle = octree.getClosestTriangleFromPoint(position);
         
         // Instead of using the center of the triangle, find the actual closest point on the triangle
-        return closestPointOnTriangle(
+        return MathsUtils.closestPointOnTriangle(
             position,
             closestTriangle.a,
             closestTriangle.b,
@@ -558,7 +358,7 @@ class Particle {
         
         // Find the closest point on the surface to the look-ahead point
         const closestTriangle = octree.getClosestTriangleFromPoint(lookAheadPoint);
-        const closestPoint = closestPointOnTriangle(
+        const closestPoint = MathsUtils.closestPointOnTriangle(
             lookAheadPoint,
             closestTriangle.a,
             closestTriangle.b, 
@@ -566,7 +366,7 @@ class Particle {
         );
         
         // Calculate the surface normal at this point
-        const surfaceNormal = calculateTriangleNormal(
+        const surfaceNormal = MathsUtils.calculateTriangleNormal(
             closestTriangle.a,
             closestTriangle.b,
             closestTriangle.c
@@ -604,13 +404,13 @@ class Particle {
         const rotationAxis = growthDir.clone().cross(normal).normalize();
         
         // If rotation axis is too small (vectors are nearly parallel)
-        if (rotationAxis.lengthSq() < EPSILON) {
+        if (rotationAxis.lengthSq() < MathsUtils.EPSILON) {
             // Try a different approach - rotate around any axis perpendicular to growth
             const worldUp = new THREE.Vector3(0, 1, 0);
             rotationAxis.copy(worldUp.cross(growthDir));
             
             // If still too small, try another axis
-            if (rotationAxis.lengthSq() < EPSILON) {
+            if (rotationAxis.lengthSq() < MathsUtils.EPSILON) {
                 rotationAxis.set(1, 0, 0).cross(growthDir);
             }
             
@@ -619,9 +419,9 @@ class Particle {
         
         // Calculate correction angle - stronger when more deeply penetrating
         // The strength is determined by how much we're pointing into the surface
-        const penetrationAngle = Math.acos(clamp(growthDir.dot(normal), -1, 1));
+        const penetrationAngle = Math.acos(MathsUtils.clamp(growthDir.dot(normal), -1, 1));
         const correctionStrength = PENETRATION_CORRECTION_STRENGTH * dt;
-        const correctionAngle = clamp(penetrationAngle * correctionStrength, 0, MAX_ROTATION_PER_FRAME);
+        const correctionAngle = MathsUtils.clamp(penetrationAngle * correctionStrength, 0, MAX_ROTATION_PER_FRAME);
         
         // Apply correction rotation - rotate away from surface
         const correctionRotation = new THREE.Quaternion().setFromAxisAngle(rotationAxis, correctionAngle);
@@ -631,7 +431,7 @@ class Particle {
         // When we correct for penetration, we need to recalculate our preferred direction
         if (this.preferredDir) {
             const newDir = this.getDir();
-            this.preferredDir = smoothLerp(this.preferredDir, newDir, 0.5).normalize();
+            this.preferredDir = MathsUtils.smoothLerp(this.preferredDir, newDir, 0.5).normalize();
         }
     }
 
@@ -680,7 +480,7 @@ class Particle {
         .add(gravity.clone().add(externalForces).multiplyScalar(dt*dt/2));
 
         const ang_vel_length = this.w.length();
-        if (ang_vel_length < EPSILON) {
+        if (ang_vel_length < MathsUtils.EPSILON) {
             this.q_pred = this.q.clone();
             return;
         }
@@ -744,7 +544,7 @@ class Particle {
             )
             .multiplyScalar(particle.mass);
             M += particle.mass;
-            A = mat3Add(A, X);
+            A = MathsUtils.mat3Add(A, X);
         }
         let C = new THREE.Matrix3()
         .set(
@@ -753,9 +553,9 @@ class Particle {
             c.z * c_rest.x, c.z * c_rest.y, c.z * c_rest.z
         )
         .multiplyScalar(M); // should be -M ? but it crashes
-        A = mat3Add(A, C);
+        A = MathsUtils.mat3Add(A, C);
 
-        this.Rg = polarDecomposition(A);
+        this.Rg = MathsUtils.polarDecomposition(A);
     }
 
     updateTargetPosition() {
@@ -808,7 +608,7 @@ class Particle {
             r = this.q.clone().multiply(this.q_pred.invert());
         }
         const angle = Math.acos(r.w);
-        if (angle < EPSILON) {
+        if (angle < MathsUtils.EPSILON) {
             this.w = new THREE.Vector3(0, 0, 0);
         } else {
             const axis = new THREE.Vector3(r.x, r.y, r.z).normalize();
@@ -821,8 +621,8 @@ class Particle {
 
     applyDoubleRot(q: THREE.Quaternion, axis1: THREE.Vector3, angle1: number, axis2: THREE.Vector3, angle2: number) : THREE.Euler {
         // Clamp rotation angles to avoid excessive rotation
-        angle1 = clamp(angle1, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
-        angle2 = clamp(angle2, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+        angle1 = MathsUtils.clamp(angle1, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+        angle2 = MathsUtils.clamp(angle2, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
         
         const q1 = new THREE.Quaternion().setFromAxisAngle(axis1, angle1);
         const q2 = new THREE.Quaternion().setFromAxisAngle(axis2, angle2);
@@ -848,9 +648,9 @@ class Particle {
             if (this.parent && this.smoothedNormal) {
                 // Project parent's direction onto the surface plane
                 const parentDir = this.parent.getDir();
-                const tangentDir = projectVectorOntoPlane(parentDir, this.smoothedNormal);
+                const tangentDir = MathsUtils.projectVectorOntoPlane(parentDir, this.smoothedNormal);
                 
-                if (tangentDir.lengthSq() > EPSILON) {
+                if (tangentDir.lengthSq() > MathsUtils.EPSILON) {
                     return tangentDir.normalize();
                 }
             }
@@ -875,7 +675,7 @@ class Particle {
         const biasedDir = this.applyGrowthBias(currentDir);
         
         // Smoothly blend with the existing preferred direction
-        this.preferredDir = smoothLerp(
+        this.preferredDir = MathsUtils.smoothLerp(
             this.preferredDir,
             biasedDir,
             dt * (1 - DIRECTION_SMOOTHING) // Smaller values = more smoothing
@@ -910,8 +710,8 @@ class Particle {
         if (this.preferredDir) {
             // Project the preferred direction onto the surface plane if we have a normal
             if (this.smoothedNormal) {
-                const tangentPreferred = projectVectorOntoPlane(this.preferredDir, this.smoothedNormal);
-                if (tangentPreferred.lengthSq() > EPSILON) {
+                const tangentPreferred = MathsUtils.projectVectorOntoPlane(this.preferredDir, this.smoothedNormal);
+                if (tangentPreferred.lengthSq() > MathsUtils.EPSILON) {
                     // Blend between surface vector and preferred direction
                     targetDir = v_s.clone().lerp(tangentPreferred.normalize(), 0.5).normalize();
                 }
@@ -926,7 +726,7 @@ class Particle {
         const a_a = v_f.clone().cross(targetDir).normalize();
         
         // If vectors are nearly parallel, rotation axis might be undefined
-        if (a_a.lengthSq() < EPSILON) {
+        if (a_a.lengthSq() < MathsUtils.EPSILON) {
             // Skip surface adaptation for this frame
         } else {
             // Calculate rotation angle for surface adaptation
@@ -937,10 +737,10 @@ class Particle {
             
             // Apply a smoothed rotation to prevent sudden changes
             // Stronger adaptation for more misalignment
-            const alpha_a = clamp(alignmentFactor * SURFACE_ADAPTATION_STRENGTH * dt, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+            const alpha_a = MathsUtils.clamp(alignmentFactor * SURFACE_ADAPTATION_STRENGTH * dt, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
             
             // Apply rotation toward surface-preferred direction
-            if (Math.abs(alpha_a) > EPSILON) {
+            if (Math.abs(alpha_a) > MathsUtils.EPSILON) {
                 const rotation = new THREE.Quaternion().setFromAxisAngle(a_a, alpha_a);
                 this.q.premultiply(rotation);
                 this.q.normalize();
@@ -964,16 +764,16 @@ class Particle {
         const a_p = v_f.clone().cross(d_l).normalize();
         
         // Skip if rotation axis is undefined (vectors are parallel)
-        if (a_p.lengthSq() > EPSILON) {
+        if (a_p.lengthSq() > MathsUtils.EPSILON) {
             // Dot product determines how much rotation is needed
             // A positive dot product means we're already facing toward the light
             const dotProduct = v_f.clone().dot(d_l);
             
             // Scale the rotation angle based on alignment and distance
-            const alpha_p = clamp(dotProduct * PHOTOTROPISM_RESPONSE_STRENGTH * dt * occlusion, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
+            const alpha_p = MathsUtils.clamp(dotProduct * PHOTOTROPISM_RESPONSE_STRENGTH * dt * occlusion, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
             
             // Apply rotation toward light
-            if (Math.abs(alpha_p) > EPSILON) {
+            if (Math.abs(alpha_p) > MathsUtils.EPSILON) {
                 const rotation = new THREE.Quaternion().setFromAxisAngle(a_p, alpha_p);
                 this.q.premultiply(rotation);
                 this.q.normalize();
@@ -1023,46 +823,4 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     });
 }
 
-function particleRope(scene: THREE.Scene, size=10) : Particle[] {
-    let particles: Particle[] = [];
-    let root = new Particle(
-        new THREE.Vector3(
-            0,
-            0,
-            0),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)),
-        new THREE.MeshStandardMaterial({
-            color: 0xff2233
-        }), scene, 0, true
-    );
-    particles.push(root);
-    for (let i = 0; i < size; i++) {
-        let particle = particles[particles.length - 1];
-        particle.growApicalChild(particles);
-    }
-    return particles;
-}
-
-function horizontalParticleRope(scene: THREE.Scene, size=10) : Particle[] {
-    let particles: Particle[] = [];
-    let root = new Particle(
-        new THREE.Vector3(
-            1,
-            0,
-            1),
-        new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(0, 0, Math.PI/2) // horizontal
-        ),
-        new THREE.MeshStandardMaterial({
-            color: 0x22ff33
-        }), scene, 0, true
-    );
-    particles.push(root);
-    for (let i = 0; i < size; i++) {
-        let particle = particles[particles.length - 1];
-        particle.growApicalChild(particles);
-    }
-    return particles;
-}
-
-export { Particle, updateParticleGroup, particleRope, horizontalParticleRope };
+export { Particle, updateParticleGroup };
