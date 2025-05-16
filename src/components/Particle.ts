@@ -2,21 +2,11 @@
 
 //a particule is represented by an ellipsoid 3D shape
 import * as THREE from "three";
-import * as CANNON from "cannon-es";
-import {GROUP_PLANT, GROUP_GROUND} from "../utils/Engine";
-import {scene} from "../utils/Scene";
-import {Vector3} from "three";
 import { Octree } from "utils/Octree";
 import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
-import { Quat } from "../utils/physics/Quaternion";
 import { coordonneToObject } from "../utils/coordonneToObject";
 
 import * as MathsUtils from "../utils/MathsUtils";
-
-export const MAX_PARTICLE_CHILDS : number = 4;
-export const MAX_CONSTRAINT_ANGLE : number = Math.PI/2;
-export const TWIST_ANGLE : number = Math.PI/3;
-export const MAX_DISTANCE_CONSTRAINT : number = 9;
 
 export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
 export const MAX_WIDTH : number = 0.5;
