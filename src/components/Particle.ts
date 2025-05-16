@@ -207,18 +207,20 @@ class Particle {
         this.x_anchor = this.x.clone();
     }
 
+    stillGrowing() : boolean {
+        // Check if the particle is still growing
+        return this.dimensions.y < MAX_WIDTH || this.dimensions.z < MAX_HEIGHT;
+    }
+
     selfGrowth(dt: number, octree: Octree) {
-        let grown = false;
+        if (!this.stillGrowing()) return;
         if (this.dimensions.x < MAX_WIDTH) {
             this.dimensions.x += DELTA_WIDTH * dt;
             this.dimensions.y += DELTA_WIDTH * dt;
-            grown = true;
         }
         if (this.dimensions.z < MAX_HEIGHT) {
             this.dimensions.z += DELTA_HEIGHT * dt;
-            grown = true;
         }
-        if (!grown) return;
         this.updateMass();
         this.updateMomentMatrix();
         this.updateAnchor(octree);
@@ -480,6 +482,33 @@ class Particle {
         // Rotation
         this.q = this.q_pred.clone();
     }
+
+    applyDoubleRot(q: THREE.Quaternion, axis1: THREE.Vector3, angle1: number, axis2: THREE.Vector3, angle2: number) : THREE.Euler {
+        let quaternion = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axis1, angle1)).multiply(new THREE.Quaternion().setFromAxisAngle(axis2, angle2));
+        return new THREE.Euler().setFromQuaternion(quaternion);
+    }
+
+    plantOrientation(dt: number, light: any) {
+        if (this.hasApicalChild) return;
+        // Surface adaptation
+        let v_s = this.x.clone().sub(this.x_anchor).normalize();
+        let v_f = this.getDir().normalize();
+        let a_a = v_s.clone().cross(v_f).normalize(); // norm ??
+        let alpha_a = v_s.clone().dot(v_f) * SURFACE_ADAPTATION_STRENGTH * dt;
+
+        // Phototropism
+        let v_l = light.position.clone();
+        let d_l = v_l.clone().sub(this.x);
+
+        let radial = d_l.length();
+        let occlusion = 25/(radial*radial);
+        d_l.normalize();
+
+        let a_p = v_f.clone().cross(d_l).normalize();
+        let alpha_p = (v_f.clone().dot(d_l) * PHOTOTROPISM_RESPONSE_STRENGTH * dt) * occlusion;
+        let new_rot = this.applyDoubleRot(this.q, a_a, alpha_a, a_p, alpha_p);
+        this.q.setFromEuler(new_rot);
+    }
 }
 
 function applyToAllParticles(particleGroup: Particle[], func: (particle: Particle) => void) {
@@ -544,8 +573,10 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     // Correct x towards the nearest anchor
 
     // Surface adaptation
-
     // Phototropism
+    applyToAllParticles(particleGroup, (particle) => {
+        particle.plantOrientation(delta_time, light);
+    });
 
     // Growth integration
 
