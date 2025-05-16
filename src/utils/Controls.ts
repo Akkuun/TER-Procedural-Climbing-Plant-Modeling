@@ -1,12 +1,18 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { DragControls } from 'three/examples/jsm/controls/DragControls';
 import { Camera, PerspectiveCamera, Vector3, WebGLRenderer, MeshPhongMaterial } from 'three';
-import { MAX_DISTANCE_CONSTRAINT } from '../components/Particule';
+import * as THREE from 'three';
 import {Particle} from '../components/Particle';
 
 
 let dragControls: DragControls;
 let camControls: OrbitControls;
+
+export const controlsParams = {
+    plantSeedMode: false,
+};
+
+
 
 /**
  * 
@@ -32,13 +38,50 @@ export function setupControls(particles: Particle[], camera: PerspectiveCamera, 
     });
 }
 
-
+export function updateControls() {
+    if (camControls) {
+        camControls.update();
+    }
+}
 
 export function setupCameraControls(camera: Camera, domElement: HTMLElement | null | undefined) {
-    const controls = new OrbitControls(camera, domElement);
-    controls.enableDamping = true; // Ajoute un amortissement pour une meilleure expérience utilisateur
-    controls.dampingFactor = 0.05;
-    return controls;
+    camControls = new OrbitControls(camera, domElement);
+    
+    // Basic settings
+    camControls.enableDamping = true;
+    camControls.dampingFactor = 0.45;
+    
+    // Speed settings
+    camControls.rotateSpeed = 0.8;
+    camControls.zoomSpeed = 1.0;
+    camControls.panSpeed = 1.0;
+    
+    // Mouse button settings - this is the crucial part
+    camControls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.PAN
+    };
+    
+    // Touch settings
+    camControls.touches = {
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN
+    };
+    
+    // Set reasonable limits
+    camControls.minPolarAngle = 0;
+    camControls.maxPolarAngle = Math.PI * 0.85;
+    camControls.minDistance = 1;
+    camControls.maxDistance = 100;
+    
+    // Ensure panning is enabled
+    camControls.enablePan = true;
+    
+    // Make sure rotation is around the scene center
+    camControls.target.set(0, 0, 0);
+    
+    return camControls;
 }
 
 let moving_particle: Particle | null = null;
@@ -57,7 +100,7 @@ function setupDragControls(particles: any[], camera: Camera, domElement: HTMLEle
         }
     });
     
-    controls.addEventListener('drag', function (event) {
+    /*controls.addEventListener('drag', function (event) {
         // Move the particle
         if (moving_particle) {
             const newPosition = new Vector3();
@@ -74,10 +117,74 @@ function setupDragControls(particles: any[], camera: Camera, domElement: HTMLEle
             }
         }
 
-    });
+    });*/
     
     controls.addEventListener('dragend', function (event) {
         moving_particle = null;
     });
     return controls;
+}
+
+export function setupMouseInteraction(
+    camera: THREE.PerspectiveCamera, 
+    renderer: THREE.WebGLRenderer, 
+    scene: THREE.Scene, 
+    particles: Particle[][],
+    ground: THREE.Object3D
+) {
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // Track mouse position
+    function onMouseMove(event: MouseEvent) {
+        // Calculate mouse position in normalized device coordinates
+        // (-1 to +1) for both components
+        mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+        mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+    }
+
+    // Handle click events
+    function onClick(event: MouseEvent) {
+        // Only handle left clicks (button 0)
+        if (event.button !== 0) return;
+        if (!controlsParams.plantSeedMode) return;
+
+        // Update the raycaster with the camera and mouse position
+        raycaster.setFromCamera(mouse, camera);
+
+        // Find intersections with the ground
+        const intersects = raycaster.intersectObject(ground, true);
+        
+        if (intersects.length > 0) {
+            const intersection = intersects[0];
+            const point = intersection.point;
+            
+            console.log(`Creating new particle at: ${point.x}, ${point.y}, ${point.z}`);
+            
+            // Create a new particle at the intersection point
+            const newParticle = new Particle(
+                new THREE.Vector3(point.x, point.y, point.z),
+                new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)), // upwards
+                new THREE.MeshStandardMaterial({
+                    color: 0x22ff33
+                }), 
+                scene, 
+                0, 
+                true
+            );
+            
+            // Add the particle as a new single-particle group
+            particles.push([newParticle]);
+        }
+    }
+
+    // Add event listeners
+    renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+    renderer.domElement.addEventListener('click', onClick, false);
+
+    // Return a function to remove event listeners if needed
+    return function cleanup() {
+        renderer.domElement.removeEventListener('mousemove', onMouseMove);
+        renderer.domElement.removeEventListener('click', onClick);
+    };
 }

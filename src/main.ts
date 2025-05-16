@@ -2,7 +2,7 @@ import { createScene } from './components/Scene';
 import { createCamera } from './components/Camera';
 import { createRenderer } from './utils/Renderer';
 import LightManager from "./components/LightManager.js";
-import { setupControls, setupCameraControls } from './utils/Controls';
+import { updateControls, setupCameraControls, setupMouseInteraction } from './utils/Controls';
 import { handleResize } from './utils/ResizeHandler';
 import Monitor from './utils/Monitor';
 import * as CANNON from 'cannon-es';
@@ -134,13 +134,9 @@ async function initialize() {
             loaderElement.style.display = 'none';
         }
 
-        let horizontalParticles = horizontalParticleRope(scene, 0);
-        particles.push(horizontalParticles);
-
-        console.log("Particle 0 ellipsoidBody init : ");
-        console.log(particles[0]);
-
         setupCameraControls(camera, renderer.domElement);
+
+        setupMouseInteraction(camera, renderer, scene, particles, ground.mesh);
 
         // Start the animation loop
         animate();
@@ -244,14 +240,13 @@ scene.children.forEach((object, index) => {
     }
 });
 
-console.log("Number of particles : " + particles.length);
-
 // Animation
 function animate(currentTime : number = 0) {
     if (currentTime - lastFrameTime >= FRAME_DELAY) {
         lastFrameTime = currentTime;
         // Monitoring stats
         monitor.begin();
+        updateControls();
         
         // Update physics
         //world.step(fixed_delta_t);
