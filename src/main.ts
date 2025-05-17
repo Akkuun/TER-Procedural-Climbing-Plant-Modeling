@@ -124,7 +124,8 @@ async function initialize() {
         // Load all models
         await Promise.all([
             loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 10, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers)
+            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
+            //loadModel(loader, './src/assets/GLTF/donut_saucisse/', new THREE.Vector3(0, 0, 0), 10, octree, helpers),
         ]);
 
         console.log('All models loaded.');
