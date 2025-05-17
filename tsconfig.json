@@ -3,7 +3,7 @@
     "target": "ES6",                     // Target ECMAScript version
     "module": "ES6",                     // Use ES6 modules
     "moduleResolution": "node",
-    "lib": ["es2016", "dom"], // Add "es2016" or later
+    "lib": ["es2017", "dom"], // Add "es2016" or later
     "outDir": "./dist",                  // Output directory for compiled JS files
     "rootDir": "./src",                  // Root directory for source files
     "strict": true,                      // Enable strict type checking

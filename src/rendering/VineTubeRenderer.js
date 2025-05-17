@@ -5,7 +5,7 @@ export class VineTubeRenderer {
     constructor(scene) {
         this.scene = scene;
         this.tubeData = new Map(); // Maps connection IDs to tube data
-        this.maxInstances = 10000;
+        this.maxInstances = 100000;
         this.instanceCount = 0;
         this.radiusScaleFactor = 0.1;
         
