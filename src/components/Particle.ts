@@ -1013,11 +1013,27 @@ function updateParticleGroup(delta_time: number, particleGroup: Particle[], grav
         particle.updateMesh();
     });
     
-    // Update tube rendering for the vine core with the unique plant ID
-    tubeRenderer.updateTubes(particleGroup, plantId);
+    // Toggle rendering mode based on ParticleParameters.plantRendering
+    // 1. Set particle ellipsoid visibility (inverse of plantRendering)
+    applyToAllParticles(particleGroup, (particle) => {
+        if (particle.mesh) {
+            particle.mesh.visible = !ParticleParameters.plantRendering;
+        }
+    });
     
-    // Update leaf rendering with the unique plant ID
-    leafRenderer.updateLeaves(particleGroup, plantId);
+    // 2. Set tube and leaf visibility based on plantRendering
+    tubeRenderer.toggleVisibility(ParticleParameters.plantRendering);
+    leafRenderer.toggleVisibility(ParticleParameters.plantRendering);
+    
+    // Always update the models regardless of visibility
+    // This ensures we don't have to rebuild everything when toggling
+    if (ParticleParameters.plantRendering) {
+        // Update tube rendering for the vine core with the unique plant ID
+        tubeRenderer.updateTubes(particleGroup, plantId);
+        
+        // Update leaf rendering with the unique plant ID
+        leafRenderer.updateLeaves(particleGroup, plantId);
+    }
 }
 
 export { Particle, updateParticleGroup };

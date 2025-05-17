@@ -4,16 +4,53 @@ import { Particle } from "../components/Particle"; // Assuming Particle is defin
 export class VineTubeRenderer {
     constructor(scene) {
         this.scene = scene;
-        this.tubeMeshes = new Map(); // Maps particle IDs to tube meshes
+        this.tubeData = new Map(); // Maps connection IDs to tube data
+        this.maxInstances = 10000;
+        this.instanceCount = 0;
+        this.radiusScaleFactor = 0.1;
+        
+        // Create instanced material
         this.tubeMaterial = new THREE.MeshStandardMaterial({
             color: 0xf5e1c0, // Beige
             roughness: 0.7,
             metalness: 0.1,
             side: THREE.DoubleSide,
-            flatShading: false,
         });
         
-        this.radiusScaleFactor = 0.1;
+        // Create base geometry for a standardized tube segment
+        this.tubeBaseGeometry = this.createBaseTubeGeometry();
+        
+        // Create instanced mesh
+        this.instancedTubes = new THREE.InstancedMesh(
+            this.tubeBaseGeometry,
+            this.tubeMaterial,
+            this.maxInstances
+        );
+        
+        this.instancedTubes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.instancedTubes.castShadow = true;
+        this.instancedTubes.receiveShadow = true;
+        this.instancedTubes.frustumCulled = false;
+        
+        // Add to scene
+        this.scene.add(this.instancedTubes);
+        
+        // Initialize instance mapping
+        this.tubeInstanceMap = new Map(); // Maps tube IDs to instance indices
+        this.freeIndices = []; // Reusable indices from removed instances
+        
+        // Dummy object for transform calculations
+        this.dummyObject = new THREE.Object3D();
+    }
+    
+    /**
+     * Create a standardized tube segment that can be transformed
+     * to fit various curves
+     */
+    createBaseTubeGeometry() {
+        // Create a basic cylinder that will be bent and transformed
+        // 8 radial segments, default is straight along Y axis
+        return new THREE.CylinderGeometry(1, 1, 1, 8, 8);
     }
 
     /**
@@ -29,7 +66,7 @@ export class VineTubeRenderer {
         // Use the root particle position as part of the plant ID if not provided
         const plantIdentifier = plantId || `plant_${rootParticle.x.toArray().join('_')}`;
         
-        // Clean up any old tube meshes that aren't needed for this plant
+        // Clean up any old tubes that aren't needed for this plant
         this.cleanupUnusedTubes(particleGroup, plantIdentifier);
         
         // Process each particle that has a parent (to create a tube between them)
@@ -43,6 +80,9 @@ export class VineTubeRenderer {
                 this.createConnectingTubes(particle, plantIdentifier);
             }
         }
+        
+        // Update instanced mesh count
+        this.instancedTubes.count = this.instanceCount;
     }
     
     /**
@@ -66,32 +106,93 @@ export class VineTubeRenderer {
         // Create a unique ID for this tube that includes the plant ID
         const tubeId = `${plantId}_${parentParticle.depth}_${parentParticle.x.toArray().join('_')}_${childParticle.depth}_${childParticle.x.toArray().join('_')}`;
         
-        // Get positions for the curve
-        const points = this.getConnectionPoints(childParticle, parentParticle);
+        // Calculate tube parameters
+        const startPoint = parentParticle.x.clone();
+        const endPoint = childParticle.x.clone();
+        const length = startPoint.distanceTo(endPoint);
+        const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
         
-        // Create a smooth curve between the points
-        const curve = new THREE.CatmullRomCurve3(points);
+        // Direction from start to end
+        const direction = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
         
-        // Determine tube radius based on particle dimensions (with smaller scale factor)
+        // Determine tube radius based on particle dimensions
         const radius = Math.min(childParticle.dimensions.x, parentParticle.dimensions.x) * this.radiusScaleFactor;
         
-        // If we already have a tube for this connection, just update it
-        if (this.tubeMeshes.has(tubeId)) {
-            const tubeMesh = this.tubeMeshes.get(tubeId);
-            tubeMesh.geometry.dispose();
-            tubeMesh.geometry = new THREE.TubeGeometry(curve, 8, radius, 8, false);
-            return;
+        // Check if we need to create or update
+        if (!this.tubeInstanceMap.has(tubeId)) {
+            // Get next available instance index
+            let instanceIndex;
+            if (this.freeIndices.length > 0) {
+                instanceIndex = this.freeIndices.pop();
+            } else {
+                instanceIndex = this.instanceCount++;
+                if (instanceIndex >= this.maxInstances) {
+                    console.warn('Maximum tube instance count reached');
+                    return;
+                }
+            }
+            
+            // Store tube data and index
+            this.tubeData.set(tubeId, {
+                startPoint: startPoint.clone(),
+                endPoint: endPoint.clone(),
+                radius: radius
+            });
+            
+            this.tubeInstanceMap.set(tubeId, instanceIndex);
+            
+            // Position and transform the tube instance
+            this.positionTubeInstance(instanceIndex, startPoint, endPoint, midPoint, direction, length, radius);
+        } else {
+            // Get existing instance index
+            const instanceIndex = this.tubeInstanceMap.get(tubeId);
+            const existingData = this.tubeData.get(tubeId);
+            
+            // Check if anything changed
+            if (!existingData.startPoint.equals(startPoint) || 
+                !existingData.endPoint.equals(endPoint) ||
+                existingData.radius !== radius) {
+                
+                // Update stored data
+                existingData.startPoint.copy(startPoint);
+                existingData.endPoint.copy(endPoint);
+                existingData.radius = radius;
+                
+                // Update position and transform
+                this.positionTubeInstance(instanceIndex, startPoint, endPoint, midPoint, direction, length, radius);
+            }
         }
+    }
+    
+    /**
+     * Position and transform a tube instance to connect two points
+     */
+    positionTubeInstance(instanceIndex, startPoint, endPoint, midPoint, direction, length, radius) {
+        // Reset the dummy object
+        this.dummyObject.position.set(0, 0, 0);
+        this.dummyObject.rotation.set(0, 0, 0);
+        this.dummyObject.scale.set(1, 1, 1);
         
-        // Create a new tube
-        const tubeGeometry = new THREE.TubeGeometry(curve, 8, radius, 8, false);
-        const tubeMesh = new THREE.Mesh(tubeGeometry, this.tubeMaterial);
-        tubeMesh.castShadow = true;
-        tubeMesh.receiveShadow = true;
+        // Set position to midpoint
+        this.dummyObject.position.copy(midPoint);
         
-        // Add to scene and store reference
-        this.scene.add(tubeMesh);
-        this.tubeMeshes.set(tubeId, tubeMesh);
+        // Scale to match length and radius
+        this.dummyObject.scale.set(radius, length, radius);
+        
+        // Rotate to align with direction vector
+        // Default cylinder is along Y axis
+        this.dummyObject.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0), // Y-axis
+            direction
+        );
+        
+        // Apply curve bending if needed for more advanced effects
+        // (This would require shader-based approach for true curved tubes)
+        
+        // Update the instance matrix
+        this.dummyObject.updateMatrix();
+        this.instancedTubes.setMatrixAt(instanceIndex, this.dummyObject.matrix);
+        this.instancedTubes.instanceMatrix.needsUpdate = true;
     }
     
     /**
@@ -122,29 +223,6 @@ export class VineTubeRenderer {
         }
     }
     
-    /**
-     * Get points for a smooth curve between particles
-     */
-    getConnectionPoints(childParticle, parentParticle) {
-        const parentPos = parentParticle.x.clone();
-        const childPos = childParticle.x.clone();
-        
-        const parentDir = parentParticle.getDir();
-        const childDir = childParticle.getDir();
-        
-        // Create control points to make a smoother curve
-        const parentControlPoint = parentPos.clone().add(
-            parentDir.clone().multiplyScalar(parentParticle.dimensions.y * 0.5)
-        );
-        
-        const childControlPoint = childPos.clone().sub(
-            childDir.clone().multiplyScalar(childParticle.dimensions.y * 0.5)
-        );
-        
-        // Return points for the curve
-        return [parentPos, parentControlPoint, childControlPoint, childPos];
-    }
-    
     cleanupUnusedTubes(currentParticles, plantId) {
         const currentIds = new Set();
         
@@ -156,16 +234,51 @@ export class VineTubeRenderer {
             }
         }
         
+        // Collect connection IDs for multi-child particles
+        for (const particle of currentParticles) {
+            if (particle.childs.length > 1) {
+                const sortedChildren = [...particle.childs].sort((a, b) => {
+                    if (a.isLateralBranch !== b.isLateralBranch) {
+                        return a.isLateralBranch ? 1 : -1;
+                    }
+                    return a.x.distanceTo(particle.x) - b.x.distanceTo(particle.x);
+                });
+                
+                for (let i = 0; i < sortedChildren.length - 1; i++) {
+                    if (sortedChildren[i].x.distanceTo(sortedChildren[i+1].x) < 
+                        sortedChildren[i].dimensions.x * 4) {
+                        const connectionId = `${plantId}_connection_${i}_${particle.depth}`;
+                        currentIds.add(connectionId);
+                    }
+                }
+            }
+        }
+        
         // Remove any tubes for this plant not in the current ID set
-        const tubeIdsToCheck = [...this.tubeMeshes.keys()].filter(id => id.startsWith(plantId));
+        const tubeIdsToCheck = [...this.tubeInstanceMap.keys()].filter(id => id.startsWith(plantId));
         
         for (const tubeId of tubeIdsToCheck) {
             if (!currentIds.has(tubeId)) {
-                const tubeMesh = this.tubeMeshes.get(tubeId);
-                this.scene.remove(tubeMesh);
-                tubeMesh.geometry.dispose();
-                this.tubeMeshes.delete(tubeId);
+                const instanceIndex = this.tubeInstanceMap.get(tubeId);
+                
+                // Clear the instance by setting scale to 0
+                this.dummyObject.position.set(0, 0, 0);
+                this.dummyObject.scale.set(0, 0, 0);
+                this.dummyObject.updateMatrix();
+                this.instancedTubes.setMatrixAt(instanceIndex, this.dummyObject.matrix);
+                
+                // Add to free indices list for reuse
+                this.freeIndices.push(instanceIndex);
+                
+                // Remove references
+                this.tubeInstanceMap.delete(tubeId);
+                this.tubeData.delete(tubeId);
             }
+        }
+        
+        // Update matrices if needed
+        if (tubeIdsToCheck.length > 0) {
+            this.instancedTubes.instanceMatrix.needsUpdate = true;
         }
     }
 
@@ -177,15 +290,40 @@ export class VineTubeRenderer {
         }
     }
     
+    toggleVisibility(visible) {
+        this.instancedTubes.visible = visible;
+    }
+    
     dispose() {
-        for (const tubeMesh of this.tubeMeshes.values()) {
-            this.scene.remove(tubeMesh);
-            tubeMesh.geometry.dispose();
-        }
-        this.tubeMeshes.clear();
+        this.scene.remove(this.instancedTubes);
+        this.instancedTubes.geometry.dispose();
+        this.instancedTubes.material.dispose();
+        this.tubeInstanceMap.clear();
+        this.tubeData.clear();
+        this.instanceCount = 0;
+        this.freeIndices = [];
     }
     
     setRadiusScaleFactor(factor) {
+        const scaleFactor = factor / this.radiusScaleFactor;
         this.radiusScaleFactor = factor;
+        
+        // Update radius of all tube segments and their instances
+        for (const [tubeId, tubeData] of this.tubeData.entries()) {
+            // Scale the existing radius
+            tubeData.radius *= scaleFactor;
+            
+            // Update the instance
+            if (this.tubeInstanceMap.has(tubeId)) {
+                const instanceIndex = this.tubeInstanceMap.get(tubeId);
+                const startPoint = tubeData.startPoint;
+                const endPoint = tubeData.endPoint;
+                const length = startPoint.distanceTo(endPoint);
+                const midPoint = new THREE.Vector3().addVectors(startPoint, endPoint).multiplyScalar(0.5);
+                const direction = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
+                
+                this.positionTubeInstance(instanceIndex, startPoint, endPoint, midPoint, direction, length, tubeData.radius);
+            }
+        }
     }
 }
