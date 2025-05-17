@@ -29,6 +29,9 @@ export function setupLightGUI(lightsManager, lightParams, updateLight, updateCam
     plantFolder.add(ParticleParameters, 'lateralBranchCooldown', 500, 10000).name('Lateral Branch Cooldown (ms)').onChange(function(value) {
         ParticleParameters.lateralBranchCooldown = value;
     });
+    plantFolder.add(ParticleParameters, 'plantRendering').name('Plant rendering').onChange(function(value) {
+        ParticleParameters.plantRendering = value;
+    });
     plantFolder.open();
 
     const lightFolder = gui.addFolder('Light Position');

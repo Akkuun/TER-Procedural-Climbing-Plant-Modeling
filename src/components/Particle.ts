@@ -5,8 +5,12 @@ import * as THREE from "three";
 import { Octree } from "utils/Octree";
 import { isObjectInShadow, isObjectInShadowWithRay } from "../utils/ObjectInShadow.js";
 import { coordonneToObject } from "../utils/coordonneToObject";
-
+import { VineTubeRenderer } from "../rendering/VineTubeRenderer";
+import { VineLeafRenderer } from "../rendering/VineLeafRenderer";
 import * as MathsUtils from "../utils/MathsUtils";
+
+// Create a map to store plant IDs
+const plantIdMap = new Map();
 
 export const SMALLEST_PARTICLE_FACTOR : number = 0.1;
 export const MAX_WIDTH : number = 0.5;
@@ -56,6 +60,7 @@ export const ParticleParameters = {
     lateralBranchProbability: 0.04,
     lateralBranchCooldown: 1500,
     growthRate: 1.0,
+    plantRendering: true,
 }
 
 class Particle {
@@ -946,8 +951,39 @@ function applyToAllParticles(particleGroup: Particle[], func: (particle: Particl
     }
 }
 
-function updateParticleGroup(delta_time : number, particleGroup : Particle[], gravity : THREE.Vector3, externalForce : THREE.Vector3,
-    light: any, scene: THREE.Scene, octree:any, eta: number, rootIndex : number=0) : void {
+function updateParticleGroup(delta_time: number, particleGroup: Particle[], gravity: THREE.Vector3, externalForce: THREE.Vector3,
+    light: any, scene: THREE.Scene, octree: any, eta: number, rootIndex: number = 0): void {
+    
+    // Get or create the tube renderer (shared across all plants)
+    if (!scene.userData.vineTubeRenderer) {
+        scene.userData.vineTubeRenderer = new VineTubeRenderer(scene);
+    }
+    const tubeRenderer = scene.userData.vineTubeRenderer;
+    
+    // Get or create the leaf renderer (shared across all plants)
+    if (!scene.userData.vineLeafRenderer) {
+        scene.userData.vineLeafRenderer = new VineLeafRenderer(scene);
+    }
+    const leafRenderer = scene.userData.vineLeafRenderer;
+    
+    // Get or create a unique ID for this plant group
+    let plantId;
+    const rootParticle = particleGroup.find(p => p.isSeed);
+    
+    if (rootParticle) {
+        // Use the root particle's position as a unique identifier
+        const rootPosKey = `${rootParticle.x.x.toFixed(2)}_${rootParticle.x.y.toFixed(2)}_${rootParticle.x.z.toFixed(2)}`;
+        
+        if (!plantIdMap.has(rootPosKey)) {
+            plantIdMap.set(rootPosKey, `plant_${plantIdMap.size}`);
+        }
+        
+        plantId = plantIdMap.get(rootPosKey);
+    } else {
+        // Fallback if no seed found
+        plantId = `plant_${rootIndex}`;
+    }
+    
     let testing = false;
     // Testing
     if (testing) {
@@ -976,6 +1012,12 @@ function updateParticleGroup(delta_time : number, particleGroup : Particle[], gr
     applyToAllParticles(particleGroup, (particle) => {
         particle.updateMesh();
     });
+    
+    // Update tube rendering for the vine core with the unique plant ID
+    tubeRenderer.updateTubes(particleGroup, plantId);
+    
+    // Update leaf rendering with the unique plant ID
+    leafRenderer.updateLeaves(particleGroup, plantId);
 }
 
 export { Particle, updateParticleGroup };
