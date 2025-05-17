@@ -5,9 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
+    <style>
+      body { margin: 0; }
+      #gui-container { position: absolute; top: 20px; right: 20px; }
+    </style>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
+    <div id="loader" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 36px; color: rgb(0, 0, 0);">
+      Loading...
+  </div>
+    <div id="gui-container"></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

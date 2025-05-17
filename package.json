@@ -9,12 +9,18 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/three": "^0.175.0",
+    "typescript": "^5.8.3",
     "vite": "^6.0.5"
   },
   "dependencies": {
+    "@react-three/cannon": "^6.6.0",
+    "cannon-es": "^0.20.0",
     "gsap": "^3.12.7",
     "lil-gui": "^0.20.0",
     "stats.js": "^0.17.0",
-    "three": "^0.172.0"
+    "svd-js": "^1.1.1",
+    "three": "^0.172.0",
+    "three-mesh-bvh": "^0.9.0"
   }
 }
