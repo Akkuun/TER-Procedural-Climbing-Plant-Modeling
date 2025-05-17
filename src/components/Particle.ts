@@ -63,6 +63,23 @@ export const ParticleParameters = {
     plantRendering: true,
 }
 
+function optimizedOctreeQuery(particle : Particle, position : THREE.Vector3, octree: Octree) : THREE.Triangle | null {
+    // Only query if we've moved enough from last position
+    if (!particle.lastQueryResult || 
+        position.distanceToSquared(particle.lastQueryPosition) > particle.queryThreshold * particle.queryThreshold) {
+        
+        particle.lastQueryPosition.copy(position);
+        particle.lastQueryResult = octree.getClosestTriangleFromPoint(position);
+        
+        // Increase threshold for stable particles
+        if (!particle.stillGrowing()) {
+            particle.queryThreshold = 0.25;
+        }
+    }
+    
+    return particle.lastQueryResult;
+}
+
 class Particle {
     widthLOD : number = 8;
     heightLOD : number = 4;
@@ -127,6 +144,10 @@ class Particle {
     
     // Normal smoothing
     lastValidSurfaceNormal: THREE.Vector3 | null = null;
+
+    lastQueryPosition = new THREE.Vector3();
+        lastQueryResult = null;
+        queryThreshold = 0.1; // Distance threshold before requerying
 
     /**
      *
@@ -261,8 +282,10 @@ class Particle {
     }
 
     updateAnchor(octree: Octree) {
-        const closestTriangle = octree.getClosestTriangleFromPoint(this.x);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
         
+        if (!closestTriangle) return;
+
         // Calculate the normal of the closest triangle
         const triangleNormal = MathsUtils.calculateTriangleNormal(
             closestTriangle.a,
@@ -332,7 +355,9 @@ class Particle {
     }
 
     closestAnchor(position: THREE.Vector3, octree: Octree) : THREE.Vector3 {
-        const closestTriangle = octree.getClosestTriangleFromPoint(position);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
+        
+        if (!closestTriangle) return position.clone();
         
         // Instead of using the center of the triangle, find the actual closest point on the triangle
         return MathsUtils.closestPointOnTriangle(
@@ -386,7 +411,10 @@ class Particle {
         const lookAheadPoint = this.getHead().add(growthDir.clone().multiplyScalar(PENETRATION_CHECK_DISTANCE));
         
         // Find the closest point on the surface to the look-ahead point
-        const closestTriangle = octree.getClosestTriangleFromPoint(lookAheadPoint);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
+        
+        if (!closestTriangle) return false;
+        
         const closestPoint = MathsUtils.closestPointOnTriangle(
             lookAheadPoint,
             closestTriangle.a,
@@ -613,6 +641,8 @@ class Particle {
         }
         return particles;
     }
+
+
 
     updateParticleGroupsCentersOfMass() {
         let mass_sum = 0;

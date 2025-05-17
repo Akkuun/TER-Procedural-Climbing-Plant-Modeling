@@ -43,7 +43,7 @@ const lightsManager: LightManager = new LightManager(scene);
 
 let particles : Particle [][] = [];
 
-const FPS : number = 30;
+const FPS : number = 80;
 const FRAME_DELAY : number = 1000 / FPS;
 let lastFrameTime : number = 0;
 const eta : number = 5;
