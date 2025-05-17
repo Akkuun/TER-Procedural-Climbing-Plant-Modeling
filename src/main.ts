@@ -9,25 +9,19 @@ import * as CANNON from 'cannon-es';
 import {Particle} from './components/Particle';
 import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
-import { createCube } from "./components/Cube";
-import { displayVectorVf, displayVectorVs } from "./utils/VectorHelper.js";
 import * as THREE from 'three';
 import { setupLightGUI } from './components/LightGUI.js';
 import { isObjectInShadow, isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
-import { coordonneToObject } from "./utils/coordonneToObject.js";
 import { lightParams } from "./components/LightManager.js";
 import {
     computeBoundsTree, disposeBoundsTree,
     computeBatchedBoundsTree, disposeBatchedBoundsTree,
-    acceleratedRaycast,
-    MeshBVHHelper
+    acceleratedRaycast
 } from 'three-mesh-bvh';
 
 import { GLTFLoader } from './utils/GLTFLoader.js';
 import { Octree } from './utils/Octree.js';
 import { OctreeHelper, OCTREE_VISIBLE } from './utils/OctreeHelper.js';
-
-import { Vec3 } from './utils/physics/Vec3';
 
 let gravity = new THREE.Vector3(0, -9.81, 0);
 let externalForce = new THREE.Vector3(0, 0, 0);
@@ -124,7 +118,9 @@ async function initialize() {
         // Load all models
         await Promise.all([
             loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 10, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 10, octree, helpers)
+            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/ruined_house/', new THREE.Vector3(10, -1, 20), 2, octree, helpers),
+            //loadModel(loader, './src/assets/GLTF/donut_saucisse/', new THREE.Vector3(-10, -1, 15), 5, octree, helpers),
         ]);
 
         console.log('All models loaded.');
@@ -217,7 +213,7 @@ const roughness = textureLoader.load('./src/assets/Maps/grass_maps/Grass_005_Rou
 
 // Ground
 //let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({color: 0x808080}));
-let ground = new PlaneTerrain(world, 50, -1, new THREE.MeshStandardMaterial({
+let ground = new PlaneTerrain(world, 100, -1, new THREE.MeshStandardMaterial({
     map: baseColor,
     aoMap: ambientOcclusion,
     displacementMap: height,
