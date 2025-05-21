@@ -35,16 +35,16 @@ export function setupLightGUI(lightsManager, lightParams, updateLight, updateCam
     plantFolder.open();
 
     const lightFolder = gui.addFolder('Light Position');
-    lightFolder.add(lightParams, 'lx', -50, 50).onChange(updateLight);
-    lightFolder.add(lightParams, 'ly', -50, 50).onChange(updateLight);
-    lightFolder.add(lightParams, 'lz', -50, 50).onChange(updateLight);
-    lightFolder.add(lightParams, 'intensity', 0, 10).onChange(updateLight);
+    lightFolder.add(lightParams, 'lx', -50, 50).name('Light X Position').onChange(updateLight);
+    lightFolder.add(lightParams, 'ly', -50, 50).name('Light Y Position').onChange(updateLight);
+    lightFolder.add(lightParams, 'lz', -50, 50).name('Light Z Position').onChange(updateLight);
+    lightFolder.add(lightParams, 'intensity', 0, 10).name('Intensity').onChange(updateLight);
     lightFolder.open();
 
     const targetFolder = gui.addFolder('Target Position');
-    targetFolder.add(lightParams, 'tx', -50, 50).onChange(updateLight);
-    targetFolder.add(lightParams, 'ty', -50, 50).onChange(updateLight);
-    targetFolder.add(lightParams, 'tz', -50, 50).onChange(updateLight);
+    targetFolder.add(lightParams, 'tx', -50, 50).name('Target X Position').onChange(updateLight);
+    targetFolder.add(lightParams, 'ty', -50, 50).name('Target Y Position').onChange(updateLight);
+    targetFolder.add(lightParams, 'tz', -50, 50).name('Target Z Position').onChange(updateLight);
     targetFolder.open();
 
     const shadowFolder = gui.addFolder('Shadow Parameters');
