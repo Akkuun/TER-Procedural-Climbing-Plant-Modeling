@@ -63,6 +63,23 @@ export const ParticleParameters = {
     plantRendering: true,
 }
 
+function optimizedOctreeQuery(particle : Particle, position : THREE.Vector3, octree: Octree) : THREE.Triangle | null {
+    // Only query if we've moved enough from last position
+    if (!particle.lastQueryResult || 
+        position.distanceToSquared(particle.lastQueryPosition) > particle.queryThreshold * particle.queryThreshold) {
+        
+        particle.lastQueryPosition.copy(position);
+        particle.lastQueryResult = octree.getClosestTriangleFromPoint(position);
+        
+        // Increase threshold for stable particles
+        if (!particle.stillGrowing()) {
+            particle.queryThreshold = 0.25;
+        }
+    }
+    
+    return particle.lastQueryResult;
+}
+
 class Particle {
     widthLOD : number = 8;
     heightLOD : number = 4;
@@ -127,6 +144,10 @@ class Particle {
     
     // Normal smoothing
     lastValidSurfaceNormal: THREE.Vector3 | null = null;
+
+    lastQueryPosition = new THREE.Vector3();
+        lastQueryResult = null;
+        queryThreshold = 0.1; // Distance threshold before requerying
 
     /**
      *
@@ -261,8 +282,10 @@ class Particle {
     }
 
     updateAnchor(octree: Octree) {
-        const closestTriangle = octree.getClosestTriangleFromPoint(this.x);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
         
+        if (!closestTriangle) return;
+
         // Calculate the normal of the closest triangle
         const triangleNormal = MathsUtils.calculateTriangleNormal(
             closestTriangle.a,
@@ -332,7 +355,9 @@ class Particle {
     }
 
     closestAnchor(position: THREE.Vector3, octree: Octree) : THREE.Vector3 {
-        const closestTriangle = octree.getClosestTriangleFromPoint(position);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
+        
+        if (!closestTriangle) return position.clone();
         
         // Instead of using the center of the triangle, find the actual closest point on the triangle
         return MathsUtils.closestPointOnTriangle(
@@ -386,7 +411,10 @@ class Particle {
         const lookAheadPoint = this.getHead().add(growthDir.clone().multiplyScalar(PENETRATION_CHECK_DISTANCE));
         
         // Find the closest point on the surface to the look-ahead point
-        const closestTriangle = octree.getClosestTriangleFromPoint(lookAheadPoint);
+        const closestTriangle = optimizedOctreeQuery(this, this.x, octree);
+        
+        if (!closestTriangle) return false;
+
         const closestPoint = MathsUtils.closestPointOnTriangle(
             lookAheadPoint,
             closestTriangle.a,
@@ -613,6 +641,8 @@ class Particle {
         }
         return particles;
     }
+
+
 
     updateParticleGroupsCentersOfMass() {
         let mass_sum = 0;
@@ -904,16 +934,6 @@ function tryGrowBranch(particleGroup: Particle[], dt: number): boolean {
     const numParticles = particleGroup.length;
     if (numParticles === 0) return false;
     
-    // Find the maximum weight to normalize probabilities
-    let maxWeight = 0;
-    for (let i = 0; i < numParticles; i++) {
-        if (particleGroup[i].weight > maxWeight) {
-            maxWeight = particleGroup[i].weight;
-        }
-    }
-    
-    if (maxWeight <= 0) return false;
-    
     // Pick a random starting point in the list
     const startIndex = Math.floor(Math.random() * numParticles);
     
@@ -930,10 +950,9 @@ function tryGrowBranch(particleGroup: Particle[], dt: number): boolean {
             continue;
         }
         
-        // Calculate probability based on weight and branch count
-        const normalizedWeight = particle.weight / maxWeight;
+        // Simple branch chance based on branch count
         const branchFactor = Math.pow(0.7, particle.branchCount);
-        const probability = normalizedWeight * branchFactor * BRANCH_SELECTION_FACTOR;
+        const probability = branchFactor * BRANCH_SELECTION_FACTOR;
         
         // Check if this particle gets a branch
         if (Math.random() < probability) {
