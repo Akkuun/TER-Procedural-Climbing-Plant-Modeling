@@ -6,7 +6,7 @@ export class VineLeafRenderer {
         this.scene = scene;
         this.leafData = new Map(); // Stores persistent data for each leaf
         this.instanceCount = 0;
-        this.maxInstances = 10000; // Maximum number of instances
+        this.maxInstances = 100000; // Maximum number of instances
         
         // Leaf settings
         this.leafSize = 0.25;

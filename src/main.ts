@@ -43,7 +43,7 @@ const lightsManager: LightManager = new LightManager(scene);
 
 let particles : Particle [][] = [];
 
-const FPS : number = 30;
+const FPS : number = 80;
 const FRAME_DELAY : number = 1000 / FPS;
 let lastFrameTime : number = 0;
 const eta : number = 5;
@@ -117,9 +117,10 @@ async function initialize() {
     try {
         // Load all models
         await Promise.all([
-            loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 10, octree, helpers),
+            //loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 1000, octree, helpers),
             loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/ruined_house/', new THREE.Vector3(10, -1, 20), 2, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/frog/', new THREE.Vector3(0, 2.1, 0), 20, octree, helpers),
+            //loadModel(loader, './src/assets/GLTF/ruined_house/', new THREE.Vector3(10, -1, 20), 2, octree, helpers),
             //loadModel(loader, './src/assets/GLTF/donut_saucisse/', new THREE.Vector3(-10, -1, 15), 5, octree, helpers),
         ]);
 
@@ -234,39 +235,135 @@ scene.children.forEach((object, index) => {
     }
 });
 
-// Animation
-function animate(currentTime : number = 0) {
+// Define interfaces for performance data structures
+interface PerformanceEntry {
+    samples: number;
+    totalFps: number;
+    minFps: number;
+    maxFps: number;
+    lastUpdate: number;
+}
+
+interface PerformanceDataPoint {
+    particleCount: number;
+    avgFps: number;
+    minFps: number;
+    maxFps: number;
+    samples: number;
+}
+
+// Create an object to store performance data by particle count
+const performanceData: Record<number, PerformanceEntry> = {};
+
+// Add a frame counter to smooth out measurements
+let frameCounter: number = 0;
+let lastFpsUpdateTime: number = 0;
+const FPS_UPDATE_INTERVAL: number = 500; // Update FPS every 500ms
+
+// Animation function with improved performance tracking
+function animate(currentTime: number = 0): void {
+    // Request next frame immediately to ensure accurate timing
+    requestAnimationFrame(animate);
+    
     if (currentTime - lastFrameTime >= FRAME_DELAY) {
+        // Calculate actual delta time and FPS
+        const deltaTime: number = currentTime - lastFrameTime;
+        const currentFps: number = 1000 / deltaTime;
+        
         lastFrameTime = currentTime;
+        frameCounter++;
+        
         // Monitoring stats
         monitor.begin();
         updateControls();
         
-        // Update physics
-        //world.step(fixed_delta_t);
-            // Update particules based on physics calculations
-        //updateParticleGroup(fixed_delta_t, particles , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
+        // Update physics and particles
         for (let particlesGroup of particles) { 
-            updateParticleGroup(fixed_delta_t, particlesGroup , gravity, externalForce, lightsManager.lights[0].light, scene, octree, eta);
+            updateParticleGroup(fixed_delta_t, particlesGroup, gravity, externalForce, 
+                                lightsManager.lights[0].light, scene, octree, eta);
         }
-        // console.log("Particles :");
-        // horizontalParticles.forEach((particle, index) => {
-        //     console.log(`Particle ${index}:`, particle);
-        // });
-
+        
+        // Count total particles
+        let totalParticleCount: number = 0;
+        for (let particlesGroup of particles) {
+            totalParticleCount += particlesGroup.length;
+        }
+        
+        // Update performance data roughly every 500ms
+        if (currentTime - lastFpsUpdateTime > FPS_UPDATE_INTERVAL) {
+            // Create entry for this particle count if it doesn't exist
+            if (!performanceData[totalParticleCount]) {
+                performanceData[totalParticleCount] = {
+                    samples: 0,
+                    totalFps: 0,
+                    minFps: Infinity,
+                    maxFps: 0,
+                    lastUpdate: currentTime
+                };
+            }
+            
+            // Update the statistics
+            const entry: PerformanceEntry = performanceData[totalParticleCount];
+            entry.samples++;
+            entry.totalFps += currentFps;
+            entry.minFps = Math.min(entry.minFps, currentFps);
+            entry.maxFps = Math.max(entry.maxFps, currentFps);
+            entry.lastUpdate = currentTime;
+            
+            lastFpsUpdateTime = currentTime;
+        }
+        
         monitor.end();
         renderer.render(scene, camera);
-
-        // /!\ Danger de mort de pc /!\
-        // la clock de animate est bien trop rapide
-        // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('cube'), scene);
-        // console.log(`RAY : Cube is in shadow: ${inShadow}`);
-        //
-        // const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('cube'));
-    // console.log(`FRUSTUM : Cube is in shadow: ${inShadow2}`);
     }
-    requestAnimationFrame(animate);
 }
+
+// Add a button to log the performance data
+const button2: HTMLButtonElement = document.createElement('button');
+button2.innerHTML = "Log performance";
+button2.style.position = 'absolute';
+button2.style.top = '100px';
+button2.style.left = '70px';
+document.body.appendChild(button2);
+
+button2.onclick = function(): void {
+    console.log("Performance Data by Particle Count:");
+    
+    // Convert to array for easier analysis
+    const dataArray: PerformanceDataPoint[] = Object.entries(performanceData).map(([count, data]) => {
+        return {
+            particleCount: parseInt(count),
+            avgFps: data.totalFps / data.samples,
+            minFps: data.minFps,
+            maxFps: data.maxFps,
+            samples: data.samples
+        };
+    });
+    
+    // Sort by particle count
+    dataArray.sort((a, b) => a.particleCount - b.particleCount);
+    
+    console.table(dataArray);
+    
+    // Prepare for CSV export
+    const csvContent: string = "Particle Count,Average FPS,Min FPS,Max FPS,Samples\n" + 
+        dataArray.map(entry => 
+            `${entry.particleCount},${entry.avgFps.toFixed(2)},${entry.minFps.toFixed(2)},${entry.maxFps.toFixed(2)},${entry.samples}`
+        ).join("\n");
+    
+    console.log("CSV data:", csvContent);
+    
+    // Create download link for CSV
+    const blob: Blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url: string = URL.createObjectURL(blob);
+    const link: HTMLAnchorElement = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'performance_data.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
 
 // Main loop
 initialize();
