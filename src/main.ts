@@ -54,7 +54,7 @@ document.body.appendChild(renderer.domElement);
 lightParams.width = 50;
 lightParams.height = 100;
 
-function loadModel(loader: GLTFLoader, path: string, position: THREE.Vector3, scale: number, octree: Octree, helpers: THREE.Object3D[]) {
+function loadModel(loader: GLTFLoader, path: string, position: THREE.Vector3, scale: number, octree: Octree, helpers: THREE.Object3D[], rotation: THREE.Vector3 = new THREE.Vector3(0, 0, 0)): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         loader.setPath(path);
         loader.load(
@@ -65,7 +65,7 @@ function loadModel(loader: GLTFLoader, path: string, position: THREE.Vector3, sc
                 // Scale and position the model
                 gltf.scene.scale.set(scale, scale, scale);
                 gltf.scene.position.copy(position);
-
+                gltf.scene.rotation.set(rotation.x, rotation.y, rotation.z);
                 // Add the model to the octree
                 octree.fromGraphNode(gltf.scene);
 
@@ -118,13 +118,13 @@ async function initialize() {
         // Load all models
         await Promise.all([
             //loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 1000, octree, helpers),
-            //loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/frog/', new THREE.Vector3(-25, 2.1, 10), 20, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(25, -1, 6), 20, octree, helpers, new THREE.Vector3(0, -Math.PI / 4, 0)),
+            loadModel(loader, './src/assets/GLTF/frog/', new THREE.Vector3(-25, -1.15, 6), 3500, octree, helpers, new THREE.Vector3(0, Math.PI / 4, 0)),
             //loadModel(loader, './src/assets/GLTF/ruined_house/', new THREE.Vector3(10, -1, 20), 2, octree, helpers),
             //loadModel(loader, './src/assets/GLTF/donut_saucisse/', new THREE.Vector3(-10, -1, 15), 5, octree, helpers),
             loadModel(loader, './src/assets/GLTF/letter_d/', new THREE.Vector3(-19, 2, -8), 20, octree, helpers),
             loadModel(loader, './src/assets/GLTF/letter_e/', new THREE.Vector3(-7, 2, -8), 20, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/letter_m/', new THREE.Vector3(5, 1.75, -8), 22, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/letter_m/', new THREE.Vector3(5, 1.6, -8), 22, octree, helpers),
             loadModel(loader, './src/assets/GLTF/letter_o/', new THREE.Vector3(17, 2, -8), 20, octree, helpers),
         ]);
 
