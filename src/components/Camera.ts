@@ -7,6 +7,6 @@ export function createCamera(): THREE.PerspectiveCamera {
         0.1, // Near clipping plane
         1000 // Far clipping plane
     );
-    camera.position.z = 5;
+    camera.position.z = 50;
     return camera;
 }

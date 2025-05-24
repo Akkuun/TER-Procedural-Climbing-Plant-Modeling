@@ -87,7 +87,78 @@ function loadModel(loader: GLTFLoader, path: string, position: THREE.Vector3, sc
 }
 
 // Ajout de lumières
-lightsManager.addLight(lightParams);
+// lightsManager.addLight(lightParams);
+
+const light = new THREE.PointLight( 0xffffff, 500, 1000 ); // Couleur, intensité, distance
+const helperColor = 0xff0000; // Rouge
+const lightHelper = new THREE.PointLightHelper(light, 5, helperColor); // Helper pour visualiser la position de la lumière
+scene.add(lightHelper);
+light.position.set( 15, 11.9, 15 );
+scene.add( light );
+
+
+// const light = new THREE.AmbientLight( 0xffffff ); // soft white light
+// scene.add( light );
+
+// const light = new THREE.DirectionalLight(0xffffff, 1);
+// light.position.set(0, 15, 0);
+// //afficher la light ou elle se trouve
+// const helperColor = 0xff0000; // Rouge
+// const lightHelper = new THREE.DirectionalLightHelper(light, 5, helperColor);
+// scene.add(lightHelper);
+// light.castShadow = true; // Enable shadow casting
+// scene.add(light);
+
+// const light = new THREE.SpotLight(0xffffff, 10);
+// light.position.set(0, 5, 0);
+// light.target.position.set(0, 0, 0);
+// const helperColor = 0xff0000; // Rouge
+// const lightHelper = new THREE.SpotLightHelper(light, helperColor);
+// scene.add(lightHelper);
+// scene.add(light);
+// scene.add(light.target);
+
+// const light = new THREE.HemisphereLight(0xaaaaaa, 0x444444, 1); // Couleur du ciel, couleur du sol, intensité
+// const helperColor = 0xff0000; // Rouge
+// const lightHelper = new THREE.HemisphereLightHelper(light, 5, helperColor);
+// scene.add(lightHelper);
+// scene.add(light);
+
+// const light = new THREE.RectAreaLight(0xffffff, 1, 10, 10); // Couleur, intensité, largeur, hauteur
+// light.position.set(0, 5, 0);
+// light.lookAt(0, 0, 0);
+// scene.add(light);
+
+// const lightProbe = new THREE.LightProbe();
+// scene.add(lightProbe);
+
+// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/stone_arc/scene.gltf', scene, './src/assets/GLTF/textures/stone_arc.jpeg');
+// modelLoader.loadModel(new THREE.Vector3(8, 10, 0), 20, (model, error) => {
+//     if (error) {
+//         console.error('Error loading model:', error);
+//     } else {
+//         scene.add(model);
+
+//         console.log('Model loaded:', model);
+
+//         let visualizerArc = new MeshBVHHelper(model., 32);
+//         scene.add(visualizerArc);
+//     }
+// });
+
+// const modelLoader = new GLTFModelLoader('./src/assets/GLTF/stone_arc/scene.gltf', scene, './src/assets/GLTF/textures/stone_arc.jpeg');
+// modelLoader.loadModel(new THREE.Vector3(8, 10, 0), 20, (model, error) => {
+//     if (error) {
+//         console.error('Error loading model:', error);
+//     } else {
+//         scene.add(model);
+
+//         console.log('Model loaded:', model);
+
+//         let visualizerArc = new MeshBVHHelper(model., 32);
+//         scene.add(visualizerArc);
+//     }
+// });
 
 // const modelLoader = new GLTFModelLoader('./src/assets/GLTF/stone_arc/scene.gltf', scene, './src/assets/GLTF/textures/stone_arc.jpeg');
 // modelLoader.loadModel(new THREE.Vector3(8, 10, 0), 20, (model, error) => {
@@ -177,24 +248,24 @@ button.onclick = function () {
 // GUI controls
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree);
 function updateLight() : void {
-    lightsManager.updateLight(0, lightParams);
-    const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
-    console.log(`RAY : Point is in shadow: ${inShadow}`);
+    // lightsManager.updateLight(0, lightParams);
+    // const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
+    // console.log(`RAY : Point is in shadow: ${inShadow}`);
 
 }
 
 function updateCamera() : void {
-    const light = lightsManager.lights[0].light;
+    // const light = lightsManager.lights[0].light;
     if("target" in light && light.target) {
         if (light.target instanceof THREE.Object3D) 
         light.target.updateMatrixWorld();
 
     }
-    lightsManager.lights[0].lightHelper.update();
-    if (light.shadow && ( light.shadow.camera instanceof THREE.PerspectiveCamera || light.shadow.camera instanceof THREE.OrthographicCamera)) {
+    // lightsManager.lights[0].lightHelper.update();
+    if (light.shadow && ( light.shadow.camera instanceof THREE.PerspectiveCamera )) {
         light.shadow.camera.updateProjectionMatrix();
     }
-    lightsManager.lights[0].cameraHelper?.update();
+    // lightsManager.lights[0].cameraHelper?.update();
 }
 
 function updateOctree() : void {
@@ -284,7 +355,7 @@ function animate(currentTime: number = 0): void {
         // Update physics and particles
         for (let particlesGroup of particles) { 
             updateParticleGroup(fixed_delta_t, particlesGroup, gravity, externalForce, 
-                                lightsManager.lights[0].light, scene, octree, eta);
+                                light, scene, octree, eta);
         }
         
         // Count total particles
@@ -375,11 +446,11 @@ initialize();
 // Gestion du redimensionnement
 handleResize(camera, renderer);
 
-const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
-console.log(`RAY : Point is in shadow: ${inShadow}`);
-
-const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('point'));
-console.log(`RAY : Point is in shadow: ${inShadow2}`);
+// const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
+// console.log(`RAY : Point is in shadow: ${inShadow}`);
+//
+// const inShadow2 = isObjectInShadow(lightsManager.lights[0].light, scene.getObjectByName('point'));
+// console.log(`RAY : Point is in shadow: ${inShadow2}`);
 
 
 
