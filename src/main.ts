@@ -118,10 +118,14 @@ async function initialize() {
         // Load all models
         await Promise.all([
             //loadModel(loader, './src/assets/GLTF/stone_arc/', new THREE.Vector3(4, 4.5, 0), 1000, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
-            loadModel(loader, './src/assets/GLTF/frog/', new THREE.Vector3(0, 2.1, 0), 20, octree, helpers),
+            //loadModel(loader, './src/assets/GLTF/oia_cat/', new THREE.Vector3(-9, -1, 0), 20, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/frog/', new THREE.Vector3(-25, 2.1, 10), 20, octree, helpers),
             //loadModel(loader, './src/assets/GLTF/ruined_house/', new THREE.Vector3(10, -1, 20), 2, octree, helpers),
             //loadModel(loader, './src/assets/GLTF/donut_saucisse/', new THREE.Vector3(-10, -1, 15), 5, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/letter_d/', new THREE.Vector3(-19, 2, -8), 20, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/letter_e/', new THREE.Vector3(-7, 2, -8), 20, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/letter_m/', new THREE.Vector3(5, 1.75, -8), 22, octree, helpers),
+            loadModel(loader, './src/assets/GLTF/letter_o/', new THREE.Vector3(17, 2, -8), 20, octree, helpers),
         ]);
 
         console.log('All models loaded.');

@@ -25,9 +25,9 @@ export type LightParams = {
 // Paramètres de la lumière
 export const lightParams: LightParams = {
     type: 'DirectionalLight',
-    lx: 0,
+    lx: 15,
     ly: 11.9,
-    lz: -13,
+    lz: 15,
     tx: 0,
     ty: 2.1,
     tz: -1.6,
