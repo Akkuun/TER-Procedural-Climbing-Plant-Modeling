@@ -177,9 +177,9 @@ export class VineLeafRenderer {
             
             // Generate and store random angles and offsets for this leaf
             const angleAround = baseAngles[i] + (Math.random() * 0.3 - 0.15);
-            const tiltAngle = Math.PI/2 + (Math.random() * 0.4 - 0.2);
+            const tiltAngle = Math.PI/4 + (Math.random() * 0.4 - 0.2);
             const heightOffset = (Math.random() - 0.5) * 0.2;
-            const scaleVariation = 0.7 + Math.random() * 0.6; // 0.7 to 1.3
+            const scaleVariation = 0.7 + Math.random() * 0.6;
             
             this.leafData.get(particleId).anglesAndOffsets.push({
                 angleAround,
@@ -277,7 +277,7 @@ export class VineLeafRenderer {
         perpVector.applyQuaternion(stemRotation);
         
         // Position leaf perpendicular to the stem
-        const offsetDistance = 0.12 + Math.random() * 0.08; // 0.12-0.2 offset for 0.1 radius vines
+        const offsetDistance = 0.12;
         const leafPosition = particle.x.clone().add(
             perpVector.clone().multiplyScalar(offsetDistance)
         );

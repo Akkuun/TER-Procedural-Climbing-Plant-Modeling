@@ -403,8 +403,6 @@ class Particle {
     // Check if the growth direction will lead to entering into the mesh
     checkPenetration(octree: Octree): boolean {
         if (this.isSeed) return false;
-        
-        // Get the current growth direction
         const growthDir = this.getDir();
         
         // Look ahead to see where the tip/head will be
@@ -577,7 +575,7 @@ class Particle {
         
         let child = new Particle(
             this.x.clone().add(this.getDir().multiplyScalar(this.dimensions.y/2)),
-            this.q.clone(),
+            this.q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(this.getDir(), Math.random() * 0.2)),
             this.material.clone(),
             this.scene,
             this.depth + 1,
@@ -864,9 +862,7 @@ class Particle {
         const a_a = v_f.clone().cross(targetDir).normalize();
         
         // If vectors are nearly parallel, rotation axis might be undefined
-        if (a_a.lengthSq() < MathsUtils.EPSILON) {
-            // Skip surface adaptation for this frame
-        } else {
+        if (a_a.lengthSq() > MathsUtils.EPSILON) {
             // Calculate rotation angle for surface adaptation
             // 1 - dot product gives a value between 0 and 2, where:
             // - 0 means vectors are parallel (no rotation needed)
@@ -874,7 +870,6 @@ class Particle {
             const alignmentFactor = 1 - v_f.clone().dot(targetDir);
             
             // Apply a smoothed rotation to prevent sudden changes
-            // Stronger adaptation for more misalignment
             const alpha_a = MathsUtils.clamp(alignmentFactor * SURFACE_ADAPTATION_STRENGTH * dt, -MAX_ROTATION_PER_FRAME, MAX_ROTATION_PER_FRAME);
             
             // Apply rotation toward surface-preferred direction
@@ -885,16 +880,14 @@ class Particle {
             }
         }
         
-        // Phototropism calculation (attraction to light)
+        // Phototropism
         // Vector from particle to light source
         const d_l = light.position.clone().sub(this.x);
         
         // Distance to light affects strength of phototropism
         const distanceToLight = d_l.length();
-        // Define a minimum distance to prevent extreme rotation when very close to light
-        const minDistance = 1.0;
         // Inverse square falloff with a minimum distance cap
-        const occlusion = 5 / Math.max(distanceToLight * distanceToLight, minDistance);
+        const occlusion = 5 / Math.max(distanceToLight * distanceToLight, 1.0);
         
         d_l.normalize();
         
@@ -904,7 +897,6 @@ class Particle {
         // Skip if rotation axis is undefined (vectors are parallel)
         if (a_p.lengthSq() > MathsUtils.EPSILON) {
             // Dot product determines how much rotation is needed
-            // A positive dot product means we're already facing toward the light
             const dotProduct = v_f.clone().dot(d_l);
             
             // Scale the rotation angle based on alignment and distance
@@ -943,14 +935,12 @@ function tryGrowBranch(particleGroup: Particle[], dt: number): boolean {
         const index = (startIndex + offset) % numParticles;
         const particle = particleGroup[index];
         
-        // Skip ineligible particles
         if (!particle.isFullyGrown() || 
             particle.isSeed || 
             performance.now() - particle.lastBranchTime < ParticleParameters.lateralBranchCooldown) {
             continue;
         }
         
-        // Simple branch chance based on branch count
         const branchFactor = Math.pow(0.7, particle.branchCount);
         const probability = branchFactor * BRANCH_SELECTION_FACTOR;
         
@@ -973,13 +963,13 @@ function applyToAllParticles(particleGroup: Particle[], func: (particle: Particl
 function updateParticleGroup(delta_time: number, particleGroup: Particle[], gravity: THREE.Vector3, externalForce: THREE.Vector3,
     light: any, scene: THREE.Scene, octree: any, eta: number, rootIndex: number = 0): void {
     
-    // Get or create the tube renderer (shared across all plants)
+    // Shared tube renderer for all plants
     if (!scene.userData.vineTubeRenderer) {
         scene.userData.vineTubeRenderer = new VineTubeRenderer(scene);
     }
     const tubeRenderer = scene.userData.vineTubeRenderer;
     
-    // Get or create the leaf renderer (shared across all plants)
+    // Shared leaf renderer for all plants
     if (!scene.userData.vineLeafRenderer) {
         scene.userData.vineLeafRenderer = new VineLeafRenderer(scene);
     }
@@ -1001,12 +991,6 @@ function updateParticleGroup(delta_time: number, particleGroup: Particle[], grav
     } else {
         // Fallback if no seed found
         plantId = `plant_${rootIndex}`;
-    }
-    
-    let testing = false;
-    // Testing
-    if (testing) {
-        return;
     }
     
     // Self growth & anchor update
