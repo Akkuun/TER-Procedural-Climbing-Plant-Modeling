@@ -8,5 +8,8 @@ export function createCamera(): THREE.PerspectiveCamera {
         1000 // Far clipping plane
     );
     camera.position.z = 50;
+    camera.position.y = 10;
+    camera.lookAt(new THREE.Vector3(0, 0, 0)); // Look at the origin
+    camera.updateProjectionMatrix(); // Update the projection matrix after changes
     return camera;
 }

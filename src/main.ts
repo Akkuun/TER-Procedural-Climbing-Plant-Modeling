@@ -100,17 +100,17 @@ scene.add( light );
 // const light = new THREE.AmbientLight( 0xffffff ); // soft white light
 // scene.add( light );
 
-// const light = new THREE.DirectionalLight(0xffffff, 1);
-// light.position.set(0, 15, 0);
+// const light = new THREE.DirectionalLight(0xffffff, 1); // Couleur, intensité
+// light.position.set(15, 11.9, 15);
 // //afficher la light ou elle se trouve
 // const helperColor = 0xff0000; // Rouge
 // const lightHelper = new THREE.DirectionalLightHelper(light, 5, helperColor);
 // scene.add(lightHelper);
-// light.castShadow = true; // Enable shadow casting
+// // light.castShadow = true; // Enable shadow casting
 // scene.add(light);
 
-// const light = new THREE.SpotLight(0xffffff, 10);
-// light.position.set(0, 5, 0);
+// const light = new THREE.SpotLight(0xffffff, 100); // Couleur, intensité
+// light.position.set(15, 11.9, 15);
 // light.target.position.set(0, 0, 0);
 // const helperColor = 0xff0000; // Rouge
 // const lightHelper = new THREE.SpotLightHelper(light, helperColor);
@@ -119,13 +119,14 @@ scene.add( light );
 // scene.add(light.target);
 
 // const light = new THREE.HemisphereLight(0xaaaaaa, 0x444444, 1); // Couleur du ciel, couleur du sol, intensité
+// light.position.set(15, 11.9, 15);
 // const helperColor = 0xff0000; // Rouge
-// const lightHelper = new THREE.HemisphereLightHelper(light, 5, helperColor);
+// const lightHelper = new THREE.HemisphereLightHelper(light, 5, helperColor)
 // scene.add(lightHelper);
 // scene.add(light);
 
 // const light = new THREE.RectAreaLight(0xffffff, 1, 10, 10); // Couleur, intensité, largeur, hauteur
-// light.position.set(0, 5, 0);
+// light.position.set(15, 11.9, 15);
 // light.lookAt(0, 0, 0);
 // scene.add(light);
 
@@ -246,6 +247,7 @@ button.onclick = function () {
 }
 
 // GUI controls
+// TODO commenter pour pas avoir le hud
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree);
 function updateLight() : void {
     // lightsManager.updateLight(0, lightParams);
