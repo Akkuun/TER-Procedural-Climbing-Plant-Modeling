@@ -5,8 +5,8 @@ import { OCTREE_VISIBLE } from '../utils/OctreeHelper.js';
 import { controlsParams } from '../utils/Controls';
 import { ParticleParameters } from './Particle';
 
-let lxController, lyController, lzController, intensityController;
-let txController, tyController, tzController;
+// let lxController, lyController, lzController, intensityController;
+// let txController, tyController, tzController;
 
 export function setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree) {
     const gui = new GUI({ container: document.getElementById('gui-container') });
@@ -39,16 +39,16 @@ export function setupLightGUI(lightsManager, lightParams, updateLight, updateCam
     plantFolder.open();
 
     const lightFolder = gui.addFolder('Light Position');
-    lxController = lightFolder.add(lightParams, 'lx', -50, 50).name('Light X Position').onChange(updateLight);
-    lyController = lightFolder.add(lightParams, 'ly', -50, 50).name('Light Y Position').onChange(updateLight);
-    lzController = lightFolder.add(lightParams, 'lz', -50, 50).name('Light Z Position').onChange(updateLight);
-    intensityController = lightFolder.add(lightParams, 'intensity', 0, 10).name('Intensity').onChange(updateLight);
+    lightFolder.add(lightParams, 'lx', -50, 50).name('Light X Position').onChange(updateLight).listen();
+    lightFolder.add(lightParams, 'ly', -50, 50).name('Light Y Position').onChange(updateLight).listen();
+    lightFolder.add(lightParams, 'lz', -50, 50).name('Light Z Position').onChange(updateLight).listen();
+    lightFolder.add(lightParams, 'intensity', 0, 10).name('Intensity').onChange(updateLight).listen();
     lightFolder.open();
 
     const targetFolder = gui.addFolder('Target Position');
-    txController = targetFolder.add(lightParams, 'tx', -50, 50).name('Target X Position').onChange(updateLight);
-    tyController = targetFolder.add(lightParams, 'ty', -50, 50).name('Target Y Position').onChange(updateLight);
-    tzController = targetFolder.add(lightParams, 'tz', -50, 50).name('Target Z Position').onChange(updateLight);
+    targetFolder.add(lightParams, 'tx', -50, 50).name('Target X Position').onChange(updateLight).listen();
+    targetFolder.add(lightParams, 'ty', -50, 50).name('Target Y Position').onChange(updateLight).listen();
+    targetFolder.add(lightParams, 'tz', -50, 50).name('Target Z Position').onChange(updateLight).listen();
     targetFolder.open();
 
     const shadowFolder = gui.addFolder('Shadow Parameters');
@@ -69,14 +69,4 @@ export function setupLightGUI(lightsManager, lightParams, updateLight, updateCam
 
     const octreeFolder = gui.addFolder('Octree Parameters');
     octreeFolder.add(OCTREE_VISIBLE, "value").name("visible").onChange(updateOctree);
-}
-
-export function updateLightGUI() {
-    if (lxController) lxController.updateDisplay();
-    if (lyController) lyController.updateDisplay();
-    if (lzController) lzController.updateDisplay();
-    if (intensityController) intensityController.updateDisplay();
-    if (txController) txController.updateDisplay();
-    if (tyController) tyController.updateDisplay();
-    if (tzController) tzController.updateDisplay();
 }

@@ -11,7 +11,6 @@ import { updateParticleGroup } from './components/Particle';
 import PlaneTerrain from './components/PlaneTerrain.js';
 import * as THREE from 'three';
 import { setupLightGUI } from './components/LightGUI.js';
-import { updateLightGUI } from './components/LightGUI.js';
 import { isObjectInShadow, isObjectInShadowWithRay } from "./utils/ObjectInShadow.js";
 import { lightParams } from "./components/LightManager.js";
 import {
@@ -179,7 +178,6 @@ button.onclick = function () {
 setupLightGUI(lightsManager, lightParams, updateLight, updateCamera, updateOctree);
 function updateLight() : void {
     lightsManager.updateLight(0, lightParams);
-    updateLightGUI();
     const inShadow = isObjectInShadowWithRay(lightsManager.lights[0].light, scene.getObjectByName('point'), scene);
     console.log(`RAY : Point is in shadow: ${inShadow}`);
 
